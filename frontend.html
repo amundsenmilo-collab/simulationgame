@@ -89,7 +89,7 @@
                 <div class="flex justify-between"><span>EBITDA:</span><span class="font-mono">$4.48M</span></div>
                 <div class="flex justify-between"><span>EBITDA Margin:</span><span class="font-mono text-green-400">16.0%</span></div>
                 <div class="flex justify-between"><span>Net Income:</span><span class="font-mono">$2.39M</span></div>
-                <div class="flex justify-between"><span>Cash:</span><span class="font-mono">$3.18M</span></div>
+                <div class="flex justify-between"><span>Cash:</span><span class="font-mono">$800K</span></div>
                 <div class="flex justify-between"><span>Debt:</span><span class="font-mono text-yellow-400">$4.62M</span></div>
                 <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">DSCR:</span><span class="font-mono font-bold text-green-400">1.93x</span></div>
               </div>
@@ -137,7 +137,8 @@
               <p class="text-gray-400 text-sm mt-1" id="yearDisplay">Year 0 (2026)</p>
             </div>
             <div class="text-right">
-              <p class="text-gray-400 text-sm">Cash: <span class="font-mono text-green-400" id="cashDisplay">$3.2M</span></p>
+              <p class="text-gray-400 text-sm">Corp Cash: <span class="font-mono text-green-400" id="cashDisplay">$800K</span></p>
+              <p class="text-gray-400 text-sm">Personal: <span class="font-mono text-blue-400" id="personalCashDisplay">$0</span></p>
               <p class="text-gray-400 text-sm">DSCR: <span class="font-mono text-green-400" id="dscrDisplay">1.93x</span></p>
             </div>
           </div>
@@ -149,7 +150,7 @@
         <div class="flex gap-2 mb-6 border-b border-gray-800 pb-4">
           <button class="tab-button active" onclick="switchTab('strategy')">Strategy</button>
           <button class="tab-button" onclick="switchTab('chat')">Advisor Chat</button>
-          <button class="tab-button" onclick="switchTab('stocks')">Stock Portfolio</button>
+          <button class="tab-button" onclick="switchTab('personal')">Personal Finances</button>
           <button class="tab-button" onclick="switchTab('metrics')">Metrics</button>
         </div>
 
@@ -221,8 +222,22 @@
           </div>
         </div>
 
-        <!-- STOCKS TAB -->
-        <div id="stocksTab" class="tab-content hidden">
+        <!-- PERSONAL FINANCES TAB -->
+        <div id="personalTab" class="tab-content hidden">
+          <!-- Personal Cash Header -->
+          <div class="bg-gradient-to-r from-blue-900/20 to-indigo-900/20 border border-blue-800 rounded-lg p-4 mb-6 flex items-center justify-between">
+            <div>
+              <p class="text-sm text-blue-300 uppercase tracking-widest font-semibold">Personal Cash</p>
+              <p class="text-3xl font-bold text-blue-400 font-mono mt-1" id="personalCashHeader">$0</p>
+            </div>
+            <div class="text-right text-sm text-gray-400">
+              <p>Separate from corporate funds</p>
+              <p class="text-xs mt-1 text-gray-500">Stocks can only be bought with personal cash</p>
+            </div>
+          </div>
+
+          <!-- Stocks Sub-section -->
+          <h3 class="text-lg font-bold mb-4 text-gray-200">Stocks</h3>
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2">
               <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6 mb-6">
@@ -236,6 +251,7 @@
             <div class="space-y-4">
               <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
                 <h2 class="text-lg font-bold mb-4">Trade</h2>
+                <p class="text-xs text-blue-400 mb-3">Uses personal cash only</p>
                 <div class="space-y-3">
                   <div>
                     <label class="text-sm text-gray-400">Ticker</label>
@@ -280,8 +296,8 @@
               <div class="metric-value status-good" id="metNet">$2.4M</div>
             </div>
             <div class="metric-card">
-              <div class="metric-label">Cash</div>
-              <div class="metric-value status-good" id="metCash">$3.2M</div>
+              <div class="metric-label">Corp Cash</div>
+              <div class="metric-value status-good" id="metCash">$800K</div>
             </div>
             <div class="metric-card">
               <div class="metric-label">Total Debt</div>
@@ -309,6 +325,7 @@
     const API_URL = "https://web-production-c89c7.up.railway.app";
     let gameId = null;
     let currentYear = 0;
+    let personalCash = 0;
 
     function formatCurrency(num) {
       if (num >= 1000000) return '$' + (num / 1000000).toFixed(1) + 'M';
@@ -319,6 +336,13 @@
     function showPage(pageId) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById(pageId).classList.add('active');
+    }
+
+    function updatePersonalCashDisplay(amount) {
+      personalCash = amount;
+      const formatted = formatCurrency(amount);
+      document.getElementById('personalCashDisplay').textContent = formatted;
+      document.getElementById('personalCashHeader').textContent = formatted;
     }
 
     function switchTab(tabName) {
@@ -338,6 +362,8 @@
         const data = await res.json();
         gameId = data.game_id;
         currentYear = 0;
+        updatePersonalCashDisplay(data.financial_summary.personal_cash || 0);
+        document.getElementById('cashDisplay').textContent = formatCurrency(data.financial_summary.cash);
         showPage('gamePage');
       } catch (e) {
         alert('Failed to create game: ' + e.message);
@@ -376,6 +402,7 @@
         document.getElementById('debtDisplay').textContent = formatCurrency(data.financial_summary.debt);
         document.getElementById('dscrDisplay').textContent = data.financial_summary.dscr.toFixed(2) + 'x';
         document.getElementById('narrativeText').innerHTML = data.narrative;
+        updatePersonalCashDisplay(data.financial_summary.personal_cash || personalCash);
         
         // Update metrics tab
         document.getElementById('metRevenue').textContent = formatCurrency(data.financial_summary.revenue);
@@ -441,6 +468,7 @@
           body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'buy', ticker: ticker, shares: shares })
         });
         const data = await res.json();
+        if (data.personal_cash !== undefined) updatePersonalCashDisplay(data.personal_cash);
         alert(data.message);
         document.getElementById('stockShares').value = '';
       } catch (e) {
@@ -461,6 +489,7 @@
           body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'sell', ticker: ticker, shares: shares })
         });
         const data = await res.json();
+        if (data.personal_cash !== undefined) updatePersonalCashDisplay(data.personal_cash);
         alert(data.message);
         document.getElementById('stockShares').value = '';
       } catch (e) {
@@ -471,7 +500,9 @@
     function resetGame() {
       gameId = null;
       currentYear = 0;
+      personalCash = 0;
       document.getElementById('directiveInput').value = '';
+      updatePersonalCashDisplay(0);
       showPage('openingPage');
     }
   </script>
