@@ -105,9 +105,9 @@
             <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
               <h2 class="text-xl font-bold mb-4">Opening Balance Sheet</h2>
               <div class="space-y-3 text-sm">
-                <div class="flex justify-between"><span>Assets:</span><span class="font-mono">$7,795,000</span></div>
+                <div class="flex justify-between"><span>Assets:</span><span class="font-mono">$5,995,000</span></div>
                 <div class="flex justify-between"><span>Liabilities:</span><span class="font-mono">$4,620,000</span></div>
-                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">Equity:</span><span class="font-mono font-bold">$3,175,000</span></div>
+                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">Equity:</span><span class="font-mono font-bold">$1,375,000</span></div>
               </div>
             </div>
 
@@ -118,9 +118,9 @@
                 <div class="flex justify-between"><span>EBITDA:</span><span class="font-mono">$4.48M</span></div>
                 <div class="flex justify-between"><span>EBITDA Margin:</span><span class="font-mono text-green-400">16.0%</span></div>
                 <div class="flex justify-between"><span>Net Income:</span><span class="font-mono">$2.39M</span></div>
-                <div class="flex justify-between"><span>Cash:</span><span class="font-mono">$800K</span></div>
+                <div class="flex justify-between"><span>Cash:</span><span class="font-mono text-yellow-400">$800K</span></div>
                 <div class="flex justify-between"><span>Debt:</span><span class="font-mono text-yellow-400">$4.62M</span></div>
-                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">DSCR:</span><span class="font-mono font-bold text-green-400">1.93x</span></div>
+                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">DSCR:</span><span class="font-mono font-bold text-yellow-400">1.93x</span></div>
               </div>
             </div>
 
@@ -290,9 +290,9 @@
               <p class="text-gray-400 text-sm mt-1" id="yearDisplay">Year 0 (2026)</p>
             </div>
             <div class="text-right">
-              <p class="text-gray-400 text-sm">Corp Cash: <span class="font-mono text-green-400" id="cashDisplay">$800K</span></p>
+              <p class="text-gray-400 text-sm">Corp Cash: <span class="font-mono text-yellow-400" id="cashDisplay">$800K</span></p>
               <p class="text-gray-400 text-sm">Personal: <span class="font-mono text-blue-400" id="personalCashDisplay">$0</span></p>
-              <p class="text-gray-400 text-sm">DSCR: <span class="font-mono text-green-400" id="dscrDisplay">1.93x</span></p>
+              <p class="text-gray-400 text-sm">DSCR: <span class="font-mono text-yellow-400" id="dscrDisplay">1.93x</span></p>
             </div>
           </div>
         </div>
@@ -494,7 +494,7 @@
             </div>
             <div class="metric-card">
               <div class="metric-label">Corp Cash</div>
-              <div class="metric-value status-good" id="metCash">$800K</div>
+              <div class="metric-value status-warning" id="metCash">$800K</div>
             </div>
             <div class="metric-card">
               <div class="metric-label">Total Debt</div>
@@ -502,7 +502,7 @@
             </div>
             <div class="metric-card">
               <div class="metric-label">DSCR</div>
-              <div class="metric-value status-good" id="metDscr">1.93x</div>
+              <div class="metric-value status-warning" id="metDscr">1.93x</div>
             </div>
             <div class="metric-card">
               <div class="metric-label">CapEx</div>
@@ -741,4 +741,3 @@
   </script>
 </body>
 </html>
-
