@@ -352,9 +352,10 @@ async def stock_action(req: StockActionRequest):
             drip_enabled=position_dict["drip_enabled"],
         )
     
+    # Use personal cash from financials (stored in financials table)
     personal_cash = financials.get("personal_cash", 0)
     message = ""
-    
+
     if action == "buy":
         position, personal_cash, message = stock_engine.buy_stock(position, stock_price, shares, personal_cash)
     elif action == "sell":
@@ -366,7 +367,7 @@ async def stock_action(req: StockActionRequest):
             message = f"DRIP {'enabled' if position.drip_enabled else 'disabled'} for {ticker}"
         else:
             message = f"No position in {ticker}"
-    
+
     # Save position
     if position and position.shares > 0:
         db.save_stock_position(
