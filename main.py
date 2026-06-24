@@ -106,11 +106,12 @@ async def create_game(req: CreateGameRequest):
         "ebitda": 4_480_000.0,
         "ebitda_margin": 16.0,
         "net_income": 2_387_380.0,
-        "cash": 3_175_000.0,
+        "cash": 800_000.0,
         "debt": 4_620_000.0,
         "dscr": 1.93,
         "capex": 0.0,
         "dividend_paid": 0.0,
+        "personal_cash": 0.0,
     }
     db.save_financials(game_id, 0, baseline)
     
@@ -351,14 +352,14 @@ async def stock_action(req: StockActionRequest):
             drip_enabled=position_dict["drip_enabled"],
         )
     
-    cash = financials.get("cash", 0)
+    personal_cash = financials.get("personal_cash", 0)
     message = ""
     
     if action == "buy":
-        position, cash, message = stock_engine.buy_stock(position, stock_price, shares, cash)
+        position, personal_cash, message = stock_engine.buy_stock(position, stock_price, shares, personal_cash)
     elif action == "sell":
         position, proceeds, message = stock_engine.sell_stock(position, stock_price, shares)
-        cash += proceeds
+        personal_cash += proceeds
     elif action == "toggle_drip":
         if position:
             position.drip_enabled = not position.drip_enabled
@@ -373,8 +374,8 @@ async def stock_action(req: StockActionRequest):
             position.current_price, position.dividend_per_share, position.drip_enabled
         )
     
-    # Update cash
-    financials["cash"] = cash
+    # Update personal cash (corporate cash is untouched)
+    financials["personal_cash"] = personal_cash
     db.save_financials(game_id, year, financials)
     
     return {
@@ -390,7 +391,7 @@ async def stock_action(req: StockActionRequest):
             "market_value": stock_engine.get_position_value(position),
             "gain_loss": stock_engine.get_position_gain(position),
         } if position else None,
-        "cash": cash,
+        "personal_cash": personal_cash,
         "timestamp": datetime.now().isoformat(),
     }
 
