@@ -33,6 +33,25 @@
     .chat-assistant { background: #1f2937; border: 1px solid #374151; margin-right: auto; }
     .tab-button { padding: 8px 16px; border: none; background: #374151; color: white; cursor: pointer; border-radius: 6px; margin-right: 8px; }
     .tab-button.active { background: #3b82f6; }
+    .about-section { background: linear-gradient(to bottom, #111827, #0d1117); border: 1px solid #1f2937; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }
+    .about-section h2 { font-size: 1.25rem; font-weight: 700; color: #f9fafb; margin-bottom: 16px; letter-spacing: 0.02em; border-bottom: 1px solid #1f2937; padding-bottom: 10px; }
+    .about-section p { color: #d1d5db; font-size: 0.875rem; line-height: 1.75; margin-bottom: 10px; }
+    .about-section ul { list-style: none; padding: 0; margin: 0; }
+    .about-section ul li { color: #d1d5db; font-size: 0.875rem; line-height: 1.75; padding: 4px 0 4px 20px; position: relative; }
+    .about-section ul li::before { content: "—"; position: absolute; left: 0; color: #4b5563; }
+    .about-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; margin-top: 8px; }
+    .about-table thead tr { border-bottom: 1px solid #374151; }
+    .about-table thead th { text-align: left; padding: 8px 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.08em; }
+    .about-table tbody tr { border-bottom: 1px solid #1f2937; transition: background 0.15s; }
+    .about-table tbody tr:last-child { border-bottom: none; }
+    .about-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+    .about-table tbody td { padding: 10px 12px; color: #d1d5db; vertical-align: top; }
+    .about-table tbody td:first-child { color: #f3f4f6; font-weight: 600; }
+    .pe-threat { background: #7f1d1d; border: 2px solid #ef4444; border-radius: 10px; padding: 20px 24px; margin-top: 20px; }
+    .pe-threat p { color: #fca5a5; font-size: 0.875rem; line-height: 1.75; margin-bottom: 8px; }
+    .pe-threat p:last-child { margin-bottom: 0; }
+    .pe-threat .threat-headline { font-size: 1.125rem; font-weight: 900; color: #ffffff; letter-spacing: 0.01em; }
+    .stat-pill { display: inline-block; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 3px 10px; font-size: 0.75rem; font-family: monospace; color: #60a5fa; margin: 2px 4px 2px 0; }
   </style>
 </head>
 <body class="bg-black text-white">
@@ -122,6 +141,130 @@
         <div class="text-center">
           <button class="btn-primary text-lg px-8 py-3" onclick="startGame()">Begin Game</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT PAGE -->
+  <div id="aboutPage" class="page">
+    <div class="min-h-screen flex flex-col">
+      <div class="border-b border-gray-800 bg-gradient-to-b from-gray-900 to-black">
+        <div class="max-w-5xl mx-auto px-4 py-8">
+          <p class="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-2">Industry Briefing</p>
+          <h1 class="text-4xl font-bold">About Asford Materials</h1>
+          <p class="text-gray-400 text-base mt-2">Know the market before you move.</p>
+        </div>
+      </div>
+
+      <div class="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
+
+        <!-- What We Make -->
+        <div class="about-section">
+          <h2>What We Make</h2>
+          <p>Asford Materials manufactures <strong>precast concrete infrastructure products</strong> — the unglamorous backbone of American civil construction. Every road drainage system, every municipal sewer junction, every highway culvert is built from products like ours.</p>
+          <ul>
+            <li><strong>RCP Pipe</strong> — Reinforced Concrete Pipe, 12–96 inch diameter. Manufactured to ASTM C76. The workhorse product. Storm drainage, culverts, sanitary sewer. DOT-spec. Bid-driven, volume-sensitive.</li>
+            <li><strong>Manholes &amp; Junction Boxes</strong> — Precast concrete access structures. Municipal utility work. Repeat customers. Relationship-driven sales.</li>
+            <li><strong>Inlets &amp; End Treatments</strong> — Curb inlets, flared end sections, headwalls. Smaller-ticket, higher-margin. Often bundled with pipe orders.</li>
+          </ul>
+        </div>
+
+        <!-- The Market -->
+        <div class="about-section">
+          <h2>The Precast Concrete Market</h2>
+          <p>
+            <span class="stat-pill">$170B global</span>
+            <span class="stat-pill">5.6–6.3% CAGR</span>
+            <span class="stat-pill">US = largest market</span>
+          </p>
+          <p>The global precast concrete market is valued at approximately <strong>$170 billion</strong> and is growing at a compound annual rate of <strong>5.6–6.3%</strong>, driven by infrastructure investment, urbanization, and the accelerating replacement of aging water and sewer systems across the United States.</p>
+          <p>The US market is the single largest geography. Federal infrastructure spending — IIJA, state DOT budgets, municipal bond issuance — is the primary demand driver. Precast is not discretionary. When a road washes out, the pipe gets replaced. When a city expands, manholes get installed. Demand is sticky, cyclical only at the margins, and structurally growing.</p>
+          <p>Regional producers like Asford compete on <strong>delivery radius, relationship depth, and price</strong>. Concrete is heavy. Freight economics limit how far a plant can ship. A Birmingham plant serves Alabama, parts of Tennessee, Georgia, and Mississippi. That's the moat — and the ceiling.</p>
+        </div>
+
+        <!-- Competitors -->
+        <div class="about-section">
+          <h2>Key Industry Players</h2>
+          <p>The precast pipe and infrastructure market is fragmented at the regional level but increasingly consolidated at the top. Here is the competitive landscape you are entering.</p>
+          <table class="about-table">
+            <thead>
+              <tr>
+                <th>Company</th>
+                <th>Type</th>
+                <th>Scale</th>
+                <th>Relevance to Asford</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>CRH plc</td>
+                <td>Public / Global</td>
+                <td>$35B+ revenue, 3,000+ locations</td>
+                <td>Owns Oldcastle Infrastructure — the dominant US precast platform. Competes in every market Asford touches.</td>
+              </tr>
+              <tr>
+                <td>Forterra</td>
+                <td>Public (FRTA)</td>
+                <td>~$1.8B revenue, 60+ plants</td>
+                <td>Pure-play US pipe and precast. Direct competitor. Publicly traded. Acquisition target and acquirer.</td>
+              </tr>
+              <tr>
+                <td>Holcim</td>
+                <td>Public / Global</td>
+                <td>$27B+ revenue</td>
+                <td>Global cement and building materials giant. Precast is a growing segment. Capital-heavy competitor.</td>
+              </tr>
+              <tr>
+                <td>Jensen Precast</td>
+                <td>Private</td>
+                <td>Regional, Western US</td>
+                <td>Family-owned regional operator. Comparable business model to Asford. Acquisition target profile.</td>
+              </tr>
+              <tr>
+                <td>County Materials</td>
+                <td>Private</td>
+                <td>Midwest, ~20 plants</td>
+                <td>Mid-size regional. Strong DOT relationships. Expanding footprint. Potential acquirer of smaller operators.</td>
+              </tr>
+              <tr>
+                <td>Wells Concrete</td>
+                <td>Private</td>
+                <td>Upper Midwest</td>
+                <td>Structural precast focus. Less direct overlap, but competes for the same labor pool and capital.</td>
+              </tr>
+              <tr>
+                <td>KPS Capital Partners</td>
+                <td>Private Equity</td>
+                <td>$19.5B AUM, 202 facilities</td>
+                <td>Owns a major precast platform. Aggressive acquirer. The most direct PE threat to independent operators.</td>
+              </tr>
+              <tr>
+                <td>TJC (The Jordan Company)</td>
+                <td>Private Equity</td>
+                <td>Mid-market PE</td>
+                <td>Active in industrial manufacturing roll-ups. Has looked at precast. Represents the broader PE consolidation wave.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- PE Section -->
+        <div class="about-section">
+          <h2>Private Equity in Precast</h2>
+          <p>The precast concrete industry is in the middle of a <strong>PE-driven consolidation wave</strong>. The thesis is simple: the market is fragmented, demand is infrastructure-linked and non-cyclical, margins are predictable, and regional operators are often family-owned with no succession plan and aging equipment.</p>
+          <p>KPS Capital Partners has assembled a platform of <strong>202 facilities</strong> with <strong>$19.5B in AUM</strong>. They are not buying companies — they are building a national infrastructure manufacturing monopoly, plant by plant. Their playbook: acquire a regional operator, install professional management, cut costs, add capacity, and use the platform to underbid independents on large DOT contracts.</p>
+          <p>TJC (The Jordan Company) and other mid-market PE firms are running similar strategies at smaller scale. The pattern is consistent: identify a fragmented market with recurring demand, find the family-owned operators who are tired or succession-challenged, and roll them up.</p>
+          <div class="pe-threat">
+            <p class="threat-headline">PE threat is existential.</p>
+            <p>A PE-backed competitor with 20 plants and a $500M credit facility can price below your cost of capital on a DOT bid and absorb the loss. They are not trying to win that bid — they are trying to make you unprofitable until you sell. If you do not grow, professionalize, and build a defensible position in the next five years, you will either be acquired on their terms or competed into irrelevance.</p>
+          </div>
+        </div>
+
+        <div class="text-center pt-4 pb-10">
+          <p class="text-gray-500 text-sm mb-6">You've read the landscape. Now run the company.</p>
+          <button class="btn-primary text-lg px-10 py-3" onclick="proceedToGame()">Begin Game</button>
+        </div>
+
       </div>
     </div>
   </div>
@@ -353,6 +496,12 @@
     }
 
     async function startGame() {
+      showPage('aboutPage');
+    }
+
+    async function proceedToGame() {
+      const btn = document.querySelector('#aboutPage button[onclick="proceedToGame()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
       try {
         const res = await fetch(API_URL + '/game', {
           method: 'POST',
@@ -366,6 +515,7 @@
         document.getElementById('cashDisplay').textContent = formatCurrency(data.financial_summary.cash);
         showPage('gamePage');
       } catch (e) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Begin Game'; }
         alert('Failed to create game: ' + e.message);
       }
     }
