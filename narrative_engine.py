@@ -3,6 +3,7 @@ Narrative engine for Asford Materials Hyperrealism Empire Builder.
 Generates year-end texture using DeepSeek API + fragment-based fallback.
 Tracks NPC trust scores and relationship state.
 Embeds game context for grounded, character-driven narratives.
+Efficient: passes last year's narrative text + prior year's end-of-year snapshot only.
 """
 import os
 import json
@@ -104,20 +105,14 @@ class FinancialSnapshot:
     """Year-end financials."""
     year: int
     revenue: float
-    cogs_opex: float
     ebitda: float
-    depreciation: float
-    ebit: float
-    interest: float
-    taxable_income: float
-    tax: float
+    ebitda_margin: float
     net_income: float
     cash: float
     total_debt: float
     dscr: float
     dividend_paid: float
     capex: float
-    ebitda_margin: float
 
 
 @dataclass
@@ -161,6 +156,7 @@ class NarrativeEngine:
     Uses DeepSeek API for rich narratives, falls back to fragments if API fails.
     Tracks and updates NPC trust scores.
     Embeds game context for grounded, character-driven narratives.
+    EFFICIENT: Passes last year's narrative text + prior year's end-of-year snapshot only.
     """
 
     # Default trust scores for key NPCs
@@ -215,7 +211,11 @@ class NarrativeEngine:
         relationships: List[RelationshipState],
         year_type: str,
         directives: List[str],
+        prior_fin: Optional[FinancialSnapshot] = None,
+        prior_narrative: Optional[str] = None,
     ) -> str:
+        """Build efficient prompt: game context + last year's narrative + prior year snapshot + current year data."""
+
         rel_context = ""
         if relationships:
             rel_lines = []
@@ -242,9 +242,28 @@ class NarrativeEngine:
         directives_str = "; ".join(directives) if directives else "no specific directives"
         covenant_status = "COVENANT BREACH" if fin.dscr < 3.0 else "covenants intact"
 
+        # Prior year context (efficient: only end-of-year snapshot)
+        prior_context = ""
+        if prior_fin:
+            prior_context = f"""LAST YEAR ({prior_fin.year}) — END OF YEAR:
+Revenue: ${prior_fin.revenue:,.0f}
+EBITDA: ${prior_fin.ebitda:,.0f} ({prior_fin.ebitda_margin:.1f}% margin)
+Net Income: ${prior_fin.net_income:,.0f}
+Cash: ${prior_fin.cash:,.0f}
+Debt: ${prior_fin.total_debt:,.0f}
+DSCR: {prior_fin.dscr:.2f}x
+Dividend: ${prior_fin.dividend_paid:,.0f}
+
+LAST YEAR'S NARRATIVE:
+{prior_narrative if prior_narrative else "No prior narrative available."}
+
+"""
+
         prompt = f"""{GAME_CONTEXT}
 
 {NARRATIVE_FORMAT}
+
+{prior_context}
 
 YEAR {year} RESULTS:
 Year type: {year_type}
@@ -267,7 +286,7 @@ EVENTS THIS YEAR:
 {event_context}
 
 TASK:
-Write the year {year} narrative in the format shown above. Apply the key characteristics:
+Write the year {year} narrative in the format shown above. Reference last year's narrative for continuity. Apply the key characteristics:
 - Specific dates and months
 - Character names, ages, and details
 - Exact financial figures
@@ -334,8 +353,26 @@ Write the narrative now:"""
         events: Optional[List[EventMemory]] = None,
         relationships: Optional[List[RelationshipState]] = None,
         prior_fin: Optional[FinancialSnapshot] = None,
+        prior_narrative: Optional[str] = None,
         directives: Optional[List[str]] = None,
     ) -> str:
+        """
+        Main entry point. Generate year-end narrative.
+
+        Args:
+            year: Game year
+            fin: FinancialSnapshot for the year (end-of-year only)
+            company: CompanyState (optional)
+            events: List of EventMemory (optional)
+            relationships: List of RelationshipState (optional)
+            prior_fin: Prior year's END-OF-YEAR FinancialSnapshot only (efficient)
+            prior_narrative: Last year's narrative text (for continuity)
+            directives: List of player directives (optional)
+
+        Returns:
+            3-5 paragraph year-end narrative texture in the specified format.
+        """
+
         events = events or []
         relationships = relationships or []
         directives = directives or []
@@ -343,7 +380,7 @@ Write the narrative now:"""
         year_type = self._classify_year(fin, prior_fin)
 
         prompt = self._build_deepseek_prompt(
-            year, fin, company, events, relationships, year_type, directives
+            year, fin, company, events, relationships, year_type, directives, prior_fin, prior_narrative
         )
         narrative = self._call_deepseek(prompt)
 
@@ -450,3 +487,4 @@ Write the narrative now:"""
             "trust_scores": self.trust_scores,
             "timestamp": datetime.now().isoformat(),
         }
+
