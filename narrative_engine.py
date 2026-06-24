@@ -2,7 +2,7 @@
 Narrative engine for Asford Materials Hyperrealism Empire Builder.
 Generates year-end texture using DeepSeek API + fragment-based fallback.
 Tracks NPC trust scores and relationship state.
-Injects game context from game_context.md for grounded narratives.
+Embeds game context from game_context.md for grounded narratives.
 """
 import os
 import json
@@ -11,12 +11,49 @@ import requests
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
-from pathlib import Path
 
 # DeepSeek API config
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
+
+# Game context (embedded directly)
+GAME_CONTEXT = """
+ASFORD MATERIALS — Concrete and aggregate producer in Alabama. Founded 1978 by Barry Asford Sr.
+Operates batch plant in Sylacauga and form shop in Hoover. Serves DOT, commercial, specialty markets.
+
+CONNOR ASFORD — Age 25. Inherited company after father Barry Jr. died in 2025. No formal business training.
+Quiet. Observant. Doesn't bluff. Respects the people who built the company but knows things need to change.
+
+KEY NPCS:
+- Mike Castellano (58): Plant manager. Worked for Barry Sr. and Jr. Knows every machine. Wants equity.
+- Patricia Holt (52): Bank relationship manager. Manages $3.3M credit facility. Watches DSCR obsessively.
+- Mother (78): Widow. Owns 10% of company. Wants stability and legacy.
+- Sister (28): Works in office (accounting/admin). Wants to be involved in decisions.
+- Business Agent: Represents 12 hourly workers. Union election in 45 days from game start.
+- Harold Vance: Runs Forterra Materials (competitor). Older, established, aggressive on pricing.
+- Darius Cole: Supplies raw materials. Transactional. Reliable but will raise prices if he senses weakness.
+
+IMMEDIATE CRISES:
+1. Union election (45 days) — Workers voting on union representation. Wages/benefits will rise if yes.
+2. Deferred maintenance — $400K needed. Kiln is 18 years old. Equipment failures increasing.
+3. Capacity constraints — At 87% utilization, near max. Growth requires new equipment or second shift.
+4. Bank covenant — DSCR > 3.0x required, minimum cash $200K. Current DSCR 3.2x. Tight.
+
+MARKET & ECONOMY:
+- Concrete is commodity. Margins thin. Competition local and fierce.
+- DOT work steady but low-margin. Commercial work higher-margin but cyclical.
+- 2026 is stable. No recession. Construction steady. Interest rates high (7.5%).
+
+NARRATIVE VOICE:
+- Objective and unsentimental. No cheerleading. No ensuring victory. World is indifferent.
+- Ground in specific sensory detail (smells, sounds, temperatures, textures).
+- Show character motivation through dialogue and action, not explanation.
+- Embed financial reality (margins, covenants, cash flow) into story.
+- Reflect year's character (boom, crisis, stable, etc.).
+- Acknowledge relationship dynamics (who trusts Connor, who doesn't).
+- 2-3 paragraphs, not a list.
+"""
 
 
 @dataclass
@@ -80,7 +117,7 @@ class NarrativeEngine:
     Generates year-end narrative texture from financial and state data.
     Uses DeepSeek API for rich narratives, falls back to fragments if API fails.
     Tracks and updates NPC trust scores.
-    Injects game context from game_context.md for grounded narratives.
+    Embeds game context for grounded, character-driven narratives.
     """
 
     # Default trust scores for key NPCs
@@ -97,18 +134,6 @@ class NarrativeEngine:
     def __init__(self):
         self.api_key = DEEPSEEK_API_KEY
         self.trust_scores = self.DEFAULT_TRUST_SCORES.copy()
-        self.game_context = self._load_game_context()
-
-    def _load_game_context(self) -> str:
-        """Load game context from game_context.md if it exists."""
-        context_path = Path(__file__).parent / "game_context.md"
-        if context_path.exists():
-            try:
-                return context_path.read_text()
-            except Exception as e:
-                print(f"[CONTEXT] Failed to load game_context.md: {e}")
-                return ""
-        return ""
 
     # ======================================================================
     # Trust Score Management
@@ -152,8 +177,9 @@ class NarrativeEngine:
         events: List[EventMemory],
         relationships: List[RelationshipState],
         year_type: str,
+        directives: List[str],
     ) -> str:
-        """Build a rich prompt for DeepSeek with game context injected."""
+        """Build a rich, grounded prompt for DeepSeek with full game context."""
 
         # Format relationships for context
         rel_context = ""
@@ -165,6 +191,13 @@ class NarrativeEngine:
                     f"- {rel.entity_name}: trust {rel.trust_score}/100 ({trust_label})"
                 )
             rel_context = "\n".join(rel_lines)
+        else:
+            # Use default trust scores if no relationships provided
+            rel_lines = []
+            for name, score in self.trust_scores.items():
+                trust_label = self._trust_label(score)
+                rel_lines.append(f"- {name}: trust {score}/100 ({trust_label})")
+            rel_context = "\n".join(rel_lines)
 
         # Format events for context
         event_context = ""
@@ -173,50 +206,52 @@ class NarrativeEngine:
             for evt in events:
                 event_lines.append(f"- Q{evt.quarter}: {evt.event_type} - {evt.description}")
             event_context = "\n".join(event_lines)
+        else:
+            event_context = "No major events recorded."
 
-        # Build prompt with game context
-        prompt = f"""You are the objective, unsentimental game master for Asford Materials Hyperrealism Empire Builder.
+        # Format directives
+        directives_str = "; ".join(directives) if directives else "no specific directives"
 
-## GAME CONTEXT
+        # Covenant status
+        covenant_status = "COVENANT BREACH" if fin.dscr < 3.0 else "covenants intact"
 
-{self.game_context}
+        prompt = f"""{GAME_CONTEXT}
 
-## THIS YEAR ({year})
+YEAR {year} RESULTS:
+Year type: {year_type}
+Player directives: {directives_str}
 
-**Year Type:** {year_type}
-
-**Financials:**
+FINANCIALS:
 - Revenue: ${fin.revenue:,.0f}
 - EBITDA: ${fin.ebitda:,.0f} ({fin.ebitda_margin:.1f}% margin)
 - Net Income: ${fin.net_income:,.0f}
 - Cash: ${fin.cash:,.0f}
 - Total Debt: ${fin.total_debt:,.0f}
-- DSCR: {fin.dscr:.2f}x
+- DSCR: {fin.dscr:.2f}x ({covenant_status})
 - CapEx: ${fin.capex:,.0f}
 - Dividend: ${fin.dividend_paid:,.0f}
 
-**Relationship Status:**
-{rel_context if rel_context else "No relationship data."}
+RELATIONSHIP DYNAMICS:
+{rel_context}
 
-**Events This Year:**
-{event_context if event_context else "No major events."}
+EVENTS THIS YEAR:
+{event_context}
 
-## YOUR TASK
+TASK:
+Write 2-3 paragraphs of year-end narrative texture for Connor Asford. 
+- Ground in specific sensory detail (smells, sounds, temperatures, textures).
+- Show character motivation through dialogue and action, not explanation.
+- Embed financial reality (margins, covenants, cash flow) into the story.
+- Reflect the year type ({year_type}) in tone and pacing.
+- Acknowledge relationship dynamics and trust levels.
+- Be objective and unsentimental. No cheerleading. The world is indifferent.
+- Reference specific people, places, and machines from Asford Materials.
+- Do NOT list or summarize. Tell a story.
 
-Write 2-3 paragraphs of year-end narrative texture. Ground it in the game world, the characters, and the financial reality above. No lists. No dashboards. Show, don't tell.
-
-**Requirements:**
-1. Include sensory details (smell, sound, temperature, texture, touch)
-2. Let character dialogue reveal motivation, not explain it
-3. Embed the financial reality into the narrative (margins, covenants, cash flow)
-4. Reflect the year type ({year_type}) in tone and events
-5. Reference specific NPCs and their trust dynamics
-6. Be cold and unsentimental. No cheering. No ensuring victory. The world is indifferent.
-
-**Tone Example:**
+Example tone:
 "The year started with a backlog Connor had not seen since his grandfather's era. The batch plant smelled of wet cement and diesel. Mike Castellano moved his tools to the new kiln in March, three weeks behind schedule. By June, the margin was 18 percent. Patricia Holt's year-end call was brief: 'See me in January.' Connor signed the year-end statements at 11 PM, alone in the office."
 
-Write the narrative now."""
+Write the narrative now:"""
 
         return prompt
 
@@ -240,6 +275,7 @@ Write the narrative now."""
     def _call_deepseek(self, prompt: str) -> Optional[str]:
         """Call DeepSeek API. Returns narrative or None on failure."""
         if not self.api_key:
+            print("[DEEPSEEK] No API key configured")
             return None
 
         try:
@@ -263,7 +299,11 @@ Write the narrative now."""
             data = response.json()
 
             if data.get("choices") and len(data["choices"]) > 0:
-                return data["choices"][0]["message"]["content"].strip()
+                narrative = data["choices"][0]["message"]["content"].strip()
+                # Trim at first double-newline if too long
+                if "\n\n\n" in narrative:
+                    narrative = narrative.split("\n\n\n")[0].strip()
+                return narrative
 
         except requests.exceptions.Timeout:
             print("[DEEPSEEK] Timeout")
@@ -533,6 +573,7 @@ Write the narrative now."""
         events: Optional[List[EventMemory]] = None,
         relationships: Optional[List[RelationshipState]] = None,
         prior_fin: Optional[FinancialSnapshot] = None,
+        directives: Optional[List[str]] = None,
     ) -> str:
         """
         Main entry point. Generate year-end narrative.
@@ -544,6 +585,7 @@ Write the narrative now."""
             events: List of EventMemory (optional)
             relationships: List of RelationshipState (optional)
             prior_fin: Prior year's FinancialSnapshot for comparison (optional)
+            directives: List of player directives (optional)
 
         Returns:
             2-3 paragraph year-end narrative texture.
@@ -551,18 +593,20 @@ Write the narrative now."""
 
         events = events or []
         relationships = relationships or []
+        directives = directives or []
 
         # Classify year
         year_type = self._classify_year(fin, prior_fin)
 
         # Try DeepSeek first
         prompt = self._build_deepseek_prompt(
-            year, fin, company, events, relationships, year_type
+            year, fin, company, events, relationships, year_type, directives
         )
         narrative = self._call_deepseek(prompt)
 
         # Fall back to fragments if DeepSeek fails
         if not narrative:
+            print(f"[NARRATIVE] DeepSeek failed, using fragment fallback for year {year}")
             fragments = self._select_texture_fragments(year_type, events, relationships)
             narrative = self._assemble_narrative_fallback(
                 year, fin, company, fragments, year_type
@@ -580,3 +624,4 @@ Write the narrative now."""
             "trust_scores": self.trust_scores,
             "timestamp": datetime.now().isoformat(),
         }
+

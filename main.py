@@ -135,7 +135,7 @@ async def fast_forward(req: FastForwardRequest):
             founded_year=1978,
         )
 
-        # 4. Generate narrative (with optional events/relationships)
+        # 4. Generate narrative with directives
         narrative = narrative_engine.narrate_year(
             year=req.year,
             fin=fin,
@@ -143,6 +143,7 @@ async def fast_forward(req: FastForwardRequest):
             events=[],  # Can be populated from database if needed
             relationships=[],  # Can be populated from database if needed
             prior_fin=None,  # Can be populated from prior year if needed
+            directives=req.directives,  # Pass player directives to narrative
         )
 
     except Exception as e:
