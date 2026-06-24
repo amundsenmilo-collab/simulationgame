@@ -5,6 +5,10 @@ from typing import List, Dict, Optional
 from datetime import datetime
 from duckduckgo_search import DDGS
 
+# Import engines from their respective modules
+from textfile_1 import FinanceEngine
+from textfile_2 import NarrativeEngine
+
 app = FastAPI(title="Asford Materials Hyperrealism Engine")
 
 app.add_middleware(
@@ -24,9 +28,8 @@ class DecisionRequest(BaseModel):
 
 
 class FastForwardRequest(BaseModel):
-    start_year: int
-    end_year: int
-    directives_by_year: Dict[int, List[str]]
+    year: int
+    directives: List[str] = []
 
 
 class SearchRequest(BaseModel):
@@ -63,17 +66,51 @@ async def process_decision(req: DecisionRequest):
 @app.post("/fastforward")
 async def fast_forward(req: FastForwardRequest):
     """
-    Fast-forward multiple years and return a year-by-year summary.
-    """
-    results = [
-        {
-            "year": year,
-            "directives": req.directives_by_year.get(year, []),
-        }
-        for year in range(req.start_year, req.end_year + 1)
-    ]
+    Fast-forward one year: run the financial model then generate LLM narrative.
 
-    return {"years_processed": results}
+    Request body:
+        year       – target game year (e.g. 2027)
+        directives – list of player directive strings
+
+    Response:
+        year, directives, financial_summary, narrative, timestamp
+    """
+    # Guaranteed-safe default so the frontend never sees undefined
+    financial_summary: Dict = {
+        "revenue": 0.0,
+        "ebitda": 0.0,
+        "ebitda_margin": 0.0,
+        "net_income": 0.0,
+        "cash": 0.0,
+        "debt": 0.0,
+        "dscr": 0.0,
+        "covenant_breach": False,
+    }
+    narrative = ""
+    error = None
+
+    try:
+        # 1. Run financial model
+        financial_summary = FinanceEngine().fast_forward_year(req.year, req.directives)
+
+        # 2. Generate LLM narrative
+        narrative = NarrativeEngine().generate_texture(financial_summary, req.directives, req.year)
+
+    except Exception as e:
+        error = str(e)
+        narrative = f"Financial simulation encountered an error: {error}"
+
+    response = {
+        "year": req.year,
+        "directives": req.directives,
+        "financial_summary": financial_summary,
+        "narrative": narrative,
+        "timestamp": datetime.now().isoformat(),
+    }
+    if error:
+        response["error"] = error
+
+    return response
 
 
 @app.post("/search")
