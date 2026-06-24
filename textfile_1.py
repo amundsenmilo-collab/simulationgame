@@ -27,7 +27,7 @@ BASELINE = {
     "interest": 95_000.0,
     "tax_rate": 0.26,
     "debt": 4_620_000.0,
-    "cash": 3_175_000.0,
+    "cash": 800_000.0,
     "annual_debt_service": 180_000.0,
 }
 
