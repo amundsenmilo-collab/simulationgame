@@ -2,6 +2,7 @@
 Narrative engine for Asford Materials Hyperrealism Empire Builder.
 Generates year-end texture using DeepSeek API + fragment-based fallback.
 Tracks NPC trust scores and relationship state.
+Injects game context from game_context.md for grounded narratives.
 """
 import os
 import json
@@ -10,6 +11,7 @@ import requests
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from pathlib import Path
 
 # DeepSeek API config
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -78,6 +80,7 @@ class NarrativeEngine:
     Generates year-end narrative texture from financial and state data.
     Uses DeepSeek API for rich narratives, falls back to fragments if API fails.
     Tracks and updates NPC trust scores.
+    Injects game context from game_context.md for grounded narratives.
     """
 
     # Default trust scores for key NPCs
@@ -94,6 +97,18 @@ class NarrativeEngine:
     def __init__(self):
         self.api_key = DEEPSEEK_API_KEY
         self.trust_scores = self.DEFAULT_TRUST_SCORES.copy()
+        self.game_context = self._load_game_context()
+
+    def _load_game_context(self) -> str:
+        """Load game context from game_context.md if it exists."""
+        context_path = Path(__file__).parent / "game_context.md"
+        if context_path.exists():
+            try:
+                return context_path.read_text()
+            except Exception as e:
+                print(f"[CONTEXT] Failed to load game_context.md: {e}")
+                return ""
+        return ""
 
     # ======================================================================
     # Trust Score Management
@@ -138,7 +153,7 @@ class NarrativeEngine:
         relationships: List[RelationshipState],
         year_type: str,
     ) -> str:
-        """Build a rich prompt for DeepSeek."""
+        """Build a rich prompt for DeepSeek with game context injected."""
 
         # Format relationships for context
         rel_context = ""
@@ -159,13 +174,18 @@ class NarrativeEngine:
                 event_lines.append(f"- Q{evt.quarter}: {evt.event_type} - {evt.description}")
             event_context = "\n".join(event_lines)
 
-        prompt = f"""You are an objective, unsentimental game master narrating a business simulation. No cheering. No ensuring victory. The world is indifferent.
+        # Build prompt with game context
+        prompt = f"""You are the objective, unsentimental game master for Asford Materials Hyperrealism Empire Builder.
 
-COMPANY: {company.name if company else 'Asford Materials'}
-YEAR: {year}
-YEAR TYPE: {year_type}
+## GAME CONTEXT
 
-FINANCIALS:
+{self.game_context}
+
+## THIS YEAR ({year})
+
+**Year Type:** {year_type}
+
+**Financials:**
 - Revenue: ${fin.revenue:,.0f}
 - EBITDA: ${fin.ebitda:,.0f} ({fin.ebitda_margin:.1f}% margin)
 - Net Income: ${fin.net_income:,.0f}
@@ -175,13 +195,28 @@ FINANCIALS:
 - CapEx: ${fin.capex:,.0f}
 - Dividend: ${fin.dividend_paid:,.0f}
 
-RELATIONSHIPS:
+**Relationship Status:**
 {rel_context if rel_context else "No relationship data."}
 
-EVENTS THIS YEAR:
+**Events This Year:**
 {event_context if event_context else "No major events."}
 
-Write 2-3 paragraphs of year-end narrative texture. Cold, specific, human. No lists. No dashboards. Show, don't tell. Include sensory details (smell, sound, temperature, touch). Let character dialogue reveal motivation, not explain it. Ground the narrative in the financial reality and relationship dynamics above. The tone should match the year type: {year_type}."""
+## YOUR TASK
+
+Write 2-3 paragraphs of year-end narrative texture. Ground it in the game world, the characters, and the financial reality above. No lists. No dashboards. Show, don't tell.
+
+**Requirements:**
+1. Include sensory details (smell, sound, temperature, texture, touch)
+2. Let character dialogue reveal motivation, not explain it
+3. Embed the financial reality into the narrative (margins, covenants, cash flow)
+4. Reflect the year type ({year_type}) in tone and events
+5. Reference specific NPCs and their trust dynamics
+6. Be cold and unsentimental. No cheering. No ensuring victory. The world is indifferent.
+
+**Tone Example:**
+"The year started with a backlog Connor had not seen since his grandfather's era. The batch plant smelled of wet cement and diesel. Mike Castellano moved his tools to the new kiln in March, three weeks behind schedule. By June, the margin was 18 percent. Patricia Holt's year-end call was brief: 'See me in January.' Connor signed the year-end statements at 11 PM, alone in the office."
+
+Write the narrative now."""
 
         return prompt
 
@@ -216,7 +251,7 @@ Write 2-3 paragraphs of year-end narrative texture. Cold, specific, human. No li
                 "model": DEEPSEEK_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
-                "max_tokens": 500,
+                "max_tokens": 800,
             }
             response = requests.post(
                 DEEPSEEK_URL,
