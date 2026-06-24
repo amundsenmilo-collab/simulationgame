@@ -2,3 +2,5 @@ requests
 duckduckgo-search
 fastapi
 uvicorn
+psycopg2-binary
+
