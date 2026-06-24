@@ -2,7 +2,7 @@
 Narrative engine for Asford Materials Hyperrealism Empire Builder.
 Generates year-end texture using DeepSeek API + fragment-based fallback.
 Tracks NPC trust scores and relationship state.
-Embeds game context from game_context.md for grounded narratives.
+Embeds game context for grounded, character-driven narratives.
 """
 import os
 import json
@@ -18,42 +18,40 @@ DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
 
 # Game context (embedded directly)
-GAME_CONTEXT = """
-ASFORD MATERIALS — Concrete and aggregate producer in Alabama. Founded 1978 by Barry Asford Sr.
-Operates batch plant in Sylacauga and form shop in Hoover. Serves DOT, commercial, specialty markets.
+GAME_CONTEXT = """ASFORD MATERIALS, INC. — HYPERREALISM EMPIRE BUILDER
+January 1, 2026. Connor Asford, age 25.
 
-CONNOR ASFORD — Age 25. Inherited company after father Barry Jr. died in 2025. No formal business training.
-Quiet. Observant. Doesn't bluff. Respects the people who built the company but knows things need to change.
+THE INHERITANCE
+Your father, Barry Asford III, died December 15, 2025. Liver failure. He was 49. He weighed 340 pounds. He drank a fifth of bourbon a day. He ate fried chicken for breakfast. He inherited Asford Materials from his father, Barry Jr., who built it from a gravel yard in 1978. Barry III worked three days a week — Monday, Wednesday, Friday, 10 AM to 2 PM. He spent the rest of his time at the Birmingham Athletic Club, at the Regions Bank box, at the lake house in Cullman with women who were not your mother.
 
-KEY NPCS:
-- Mike Castellano (58): Plant manager. Worked for Barry Sr. and Jr. Knows every machine. Wants equity.
-- Patricia Holt (52): Bank relationship manager. Manages $3.3M credit facility. Watches DSCR obsessively.
-- Mother (78): Widow. Owns 10% of company. Wants stability and legacy.
-- Sister (28): Works in office (accounting/admin). Wants to be involved in decisions.
-- Business Agent: Represents 12 hourly workers. Union election in 45 days from game start.
-- Harold Vance: Runs Forterra Materials (competitor). Older, established, aggressive on pricing.
-- Darius Cole: Supplies raw materials. Transactional. Reliable but will raise prices if he senses weakness.
+Mike Castellano ran the company. He has run it for three years. He is not your uncle. He is your father's third cousin by marriage. You have called him "Uncle Mike" since you were six. He is 41. He is the VP of Operations. He makes $78,000. He has not had a raise in four years. He has not complained. He knows more about precast concrete than anyone in Alabama. He knows more about your father than you do.
 
-IMMEDIATE CRISES:
-1. Union election (45 days) — Workers voting on union representation. Wages/benefits will rise if yes.
-2. Deferred maintenance — $400K needed. Kiln is 18 years old. Equipment failures increasing.
-3. Capacity constraints — At 87% utilization, near max. Growth requires new equipment or second shift.
-4. Bank covenant — DSCR > 3.0x required, minimum cash $200K. Current DSCR 3.2x. Tight.
+THE COMPANY
+Asford Materials, Inc. C-corporation. Birmingham, Alabama. Heavy industrial. 7 acres. No rail.
+Products: RCP pipe, manholes, junction boxes, inlets, end treatments. DOT-adjacent, utility, commercial.
 
-MARKET & ECONOMY:
-- Concrete is commodity. Margins thin. Competition local and fierce.
-- DOT work steady but low-margin. Commercial work higher-margin but cyclical.
-- 2026 is stable. No recession. Construction steady. Interest rates high (7.5%).
+The Plant — Birmingham
+Product Line | Annual Revenue | Capacity | Utilization
+RCP pipe | $9.2M | $10.5M | 88%
+Manholes | $6.1M | $7.0M | 87%
+Junction boxes | $5.6M | $6.4M | 88%
+Inlets/end treatments | $7.1M | $8.2M | 86%
+Total Precast | $28.0M | $32.1M | 87%
 
-NARRATIVE VOICE:
-- Objective and unsentimental. No cheerleading. No ensuring victory. World is indifferent.
-- Ground in specific sensory detail (smells, sounds, temperatures, textures).
-- Show character motivation through dialogue and action, not explanation.
-- Embed financial reality (margins, covenants, cash flow) into story.
-- Reflect year's character (boom, crisis, stable, etc.).
-- Acknowledge relationship dynamics (who trusts Connor, who doesn't).
-- 2-3 paragraphs, not a list.
-"""
+The Problem: The plant is maxed out. The equipment is old but functional. The father deferred maintenance for six years. The expansion bay (added 2019) is the only reason you hit $28M. The main bay is crumbling. The form shop roof is gone — tarpaulins and buckets. The batch plant needs a new mixer drum. The crane is 18 years old and has a hairline crack in the hook block. Mike has documented all of this. Your father filed the reports in a drawer.
+
+Land & Buildings: 7 acres, 14,000 sq ft, functional but tired, 14 years old, heavy industrial, no rail, no union.
+
+THE MARGIN IS EXTRACTION, NOT COMPETENCE
+The EBITDA margin of 16% is real but brittle. It rests on three pillars:
+
+1. Labor compression. 29 production workers at $19.50/hour in a $26–28 market. Annual underpayment: ~$452,000 versus market. Barry III extracted this every year.
+
+2. Deferred maintenance. $866,000 in replacement backlog. Equipment functional until it isn't. The crane hook block, batch mixer drum, and form shop roof are time bombs.
+
+3. Mike Castellano. He makes $78,000, knows the operation completely, and has not quit. If he leaves, the margin collapses.
+
+Adjusted for market wages, EBITDA margin is 14.4% — healthy but unexceptional. The extra 1.6 points are the lie your father told."""
 
 
 @dataclass
@@ -238,18 +236,17 @@ EVENTS THIS YEAR:
 {event_context}
 
 TASK:
-Write 2-3 paragraphs of year-end narrative texture for Connor Asford. 
+Write 2-3 paragraphs of year-end narrative texture for Connor Asford in {year}.
 - Ground in specific sensory detail (smells, sounds, temperatures, textures).
 - Show character motivation through dialogue and action, not explanation.
 - Embed financial reality (margins, covenants, cash flow) into the story.
 - Reflect the year type ({year_type}) in tone and pacing.
 - Acknowledge relationship dynamics and trust levels.
 - Be objective and unsentimental. No cheerleading. The world is indifferent.
-- Reference specific people, places, and machines from Asford Materials.
+- Reference specific people (Mike, Patricia Holt, the workers), places (the plant, the form shop, the batch plant), and machines (the crane, the mixer drum, the kiln).
 - Do NOT list or summarize. Tell a story.
-
-Example tone:
-"The year started with a backlog Connor had not seen since his grandfather's era. The batch plant smelled of wet cement and diesel. Mike Castellano moved his tools to the new kiln in March, three weeks behind schedule. By June, the margin was 18 percent. Patricia Holt's year-end call was brief: 'See me in January.' Connor signed the year-end statements at 11 PM, alone in the office."
+- Remember: Connor is 25, quiet, observant, doesn't bluff. He respects the people who built the company but knows things need to change.
+- Remember: The margin is brittle. It rests on labor compression, deferred maintenance, and Mike's loyalty. Connor knows this.
 
 Write the narrative now:"""
 
