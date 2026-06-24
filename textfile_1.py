@@ -1,21 +1,37 @@
-from typing import Dict, List
+"""
+Finance Engine for Asford Materials game.
+Pure deterministic math - no randomness, no LLM.
+Takes directives and calculates year-end financials.
 
+ARCHITECTURE:
+- Input: year, directives
+- Process: Python arithmetic only
+- Output: year-end financials (revenue, ebitda, cash, debt, dscr, etc)
+
+Directives can trigger:
+1. Keyword-based effects (expand, cut, hire, etc)
+2. Web search for realistic pricing (house, insurance, equipment)
+3. Python calculations to determine impact
+"""
+
+from typing import Dict, List, Optional
+from web_search import WebSearchEngine
 
 # 2026 baseline financials for Asford Materials
 BASELINE = {
     "year": 2026,
-    "revenue": 4_800_000.0,
+    "revenue": 28_000_000.0,
     "cogs_ratio": 0.62,        # cost of goods as % of revenue
     "opex": 980_000.0,         # fixed operating expenses
     "depreciation": 120_000.0,
     "interest": 95_000.0,
     "tax_rate": 0.26,
-    "debt": 1_200_000.0,
-    "cash": 540_000.0,
+    "debt": 4_620_000.0,
+    "cash": 3_175_000.0,
     "annual_debt_service": 180_000.0,
 }
 
-# Directive modifiers: each directive keyword maps to revenue/cost adjustments
+# Directive modifiers: keyword-based effects
 DIRECTIVE_EFFECTS: Dict[str, Dict[str, float]] = {
     "expand":        {"revenue_delta": 0.08,  "opex_delta": 0.05},
     "cut":           {"revenue_delta": -0.03, "opex_delta": -0.07},
@@ -36,6 +52,13 @@ MIN_DSCR_COVENANT = 3.0
 
 
 class FinanceEngine:
+    """
+    Pure Python finance model.
+    Deterministic: same input always produces same output.
+    """
+
+    def __init__(self):
+        self.web_search = WebSearchEngine()
 
     # ------------------------------------------------------------------
     # Helpers
@@ -56,16 +79,23 @@ class FinanceEngine:
         return not (cash >= MIN_CASH_COVENANT and dscr >= MIN_DSCR_COVENANT)
 
     def _parse_directive_effects(self, directives: List[str]) -> Dict[str, float]:
-        """Aggregate multiplier deltas from all directives."""
+        """
+        Aggregate multiplier deltas from all directives.
+        Combines keyword-based effects with web search costs.
+        """
         totals: Dict[str, float] = {
             "revenue_delta": 0.0,
             "opex_delta": 0.0,
             "debt_delta": 0.0,
             "interest_delta": 0.0,
+            "cash_impact": 0.0,  # Direct cash impact from web search
         }
         matched_any = False
+        
         for directive in directives:
             directive_lower = directive.lower()
+            
+            # Check for keyword-based effects
             for keyword, effects in DIRECTIVE_EFFECTS.items():
                 if keyword == "default":
                     continue
@@ -74,7 +104,24 @@ class FinanceEngine:
                         totals[k] = totals.get(k, 0.0) + v
                     matched_any = True
                     break
-
+            
+            # Check for web search triggers (personal/company expenses)
+            if any(word in directive_lower for word in ["buy", "move", "enroll", "purchase", "hire", "insurance"]):
+                # Use web search to calculate realistic cost
+                cost_data = self.web_search.calculate_directive_cost(directive, 2026)
+                if cost_data and cost_data["confidence"] > 0.3:
+                    # Apply cost based on type
+                    if cost_data["impact_type"] == "personal_expense":
+                        # Personal expenses come from personal cash, not company
+                        pass  # Don't impact company financials
+                    elif cost_data["impact_type"] == "company_expense":
+                        # Reduce cash and increase opex
+                        totals["cash_impact"] -= cost_data["amount"]
+                        totals["opex_delta"] += cost_data["amount"] / BASELINE["opex"]
+                    elif cost_data["impact_type"] == "capital_investment":
+                        # Reduce cash, increase debt or capex
+                        totals["cash_impact"] -= cost_data["amount"]
+        
         if not matched_any:
             # Apply baseline organic growth when no specific directive matches
             for k, v in DIRECTIVE_EFFECTS["default"].items():
@@ -89,7 +136,7 @@ class FinanceEngine:
     def fast_forward_year(self, year: int, directives: List[str]) -> Dict:
         """
         Calculate one year of financials from the 2026 baseline.
-        No database required — pure arithmetic.
+        Pure arithmetic - no randomness.
 
         Args:
             year:       Target year (2026 = baseline, 2027+ = projected).
@@ -117,6 +164,9 @@ class FinanceEngine:
         opex *= (1 + effects["opex_delta"])
         debt *= (1 + effects["debt_delta"])
         interest *= (1 + effects["interest_delta"])
+        
+        # Apply direct cash impacts from web search
+        cash += effects.get("cash_impact", 0)
 
         # --- P&L ---
         cogs = revenue * BASELINE["cogs_ratio"]
@@ -148,3 +198,4 @@ class FinanceEngine:
             "dscr":           dscr,
             "covenant_breach": covenant_breach,
         }
+

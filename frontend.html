@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asford Materials — Hyperrealism Engine</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    .slide-up { animation: slideUp 0.3s ease-out; }
+    .metric-card { background: linear-gradient(135deg, #1f2937 0%, #111827 100%); border: 1px solid #374151; border-radius: 12px; padding: 16px; }
+    .metric-value { font-size: 24px; font-weight: 700; margin-top: 8px; }
+    .metric-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; }
+    .status-good { color: #4ade80; }
+    .status-warning { color: #facc15; }
+    .status-critical { color: #ef4444; }
+    .input-field { background: #1f2937; border: 1px solid #374151; border-radius: 12px; padding: 12px 16px; color: white; font-size: 14px; transition: all 0.2s; }
+    .input-field:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #374151; color: white; border: 1px solid #4b5563; border-radius: 8px; padding: 10px 20px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-secondary:hover { background: #4b5563; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .narrative-text { line-height: 1.8; color: #d1d5db; }
+    .narrative-text strong { color: #f3f4f6; font-weight: 700; }
+    .chat-bubble { border-radius: 12px; padding: 12px 16px; margin-bottom: 8px; max-width: 85%; word-wrap: break-word; }
+    .chat-user { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); margin-left: auto; }
+    .chat-assistant { background: #1f2937; border: 1px solid #374151; margin-right: auto; }
+    .tab-button { padding: 8px 16px; border: none; background: #374151; color: white; cursor: pointer; border-radius: 6px; margin-right: 8px; }
+    .tab-button.active { background: #3b82f6; }
+  </style>
+</head>
+<body class="bg-black text-white">
+  <!-- OPENING PAGE -->
+  <div id="openingPage" class="page active">
+    <div class="min-h-screen flex flex-col">
+      <div class="border-b border-gray-800 bg-gradient-to-b from-gray-900 to-black">
+        <div class="max-w-6xl mx-auto px-4 py-8">
+          <h1 class="text-4xl font-bold">Asford Materials, Inc.</h1>
+          <p class="text-gray-400 text-lg mt-2">Hyperrealism Empire Builder</p>
+        </div>
+      </div>
+
+      <div class="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          <!-- Left: Story -->
+          <div class="space-y-6">
+            <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+              <h2 class="text-2xl font-bold mb-4">The Inheritance</h2>
+              <div class="text-gray-300 space-y-4 text-sm leading-relaxed">
+                <p>Your father, Barry Asford III, died December 15, 2025. Liver failure. He was 49. He weighed 340 pounds. He drank a fifth of bourbon a day. He ate fried chicken for breakfast.</p>
+                
+                <p>He inherited Asford Materials from his father, Barry Jr., who built it from a gravel yard in 1978. Barry III worked three days a week — Monday, Wednesday, Friday, 10 AM to 2 PM. He spent the rest of his time at the Birmingham Athletic Club, at the Regions Bank box, at the lake house in Cullman with women who were not your mother.</p>
+                
+                <p><strong>Mike Castellano</strong> ran the company. He has run it for three years. He is not your uncle. He is your father's third cousin by marriage. You have called him "Uncle Mike" since you were six. He is 41. He is the VP of Operations. He makes $78,000. He has not had a raise in four years. He has not complained. He knows more about precast concrete than anyone in Alabama. He knows more about your father than you do.</p>
+              </div>
+            </div>
+
+            <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+              <h2 class="text-xl font-bold mb-4">The Company</h2>
+              <div class="text-gray-300 space-y-3 text-sm">
+                <p><strong>Asford Materials, Inc.</strong> C-corporation. Birmingham, Alabama. Heavy industrial. 7 acres. No rail.</p>
+                <p><strong>Products:</strong> RCP pipe, manholes, junction boxes, inlets, end treatments. DOT-adjacent, utility, commercial.</p>
+                <p><strong>Status:</strong> The plant is maxed out at 87% utilization. Equipment is old but functional. Deferred maintenance backlog: $866,000. The union election is 45 days away. 30% of workers showed interest in unionizing.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Financials & Crises -->
+          <div class="space-y-6">
+            <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+              <h2 class="text-xl font-bold mb-4">Opening Balance Sheet</h2>
+              <div class="space-y-3 text-sm">
+                <div class="flex justify-between"><span>Assets:</span><span class="font-mono">$7,795,000</span></div>
+                <div class="flex justify-between"><span>Liabilities:</span><span class="font-mono">$4,620,000</span></div>
+                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">Equity:</span><span class="font-mono font-bold">$3,175,000</span></div>
+              </div>
+            </div>
+
+            <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+              <h2 class="text-xl font-bold mb-4">Year 0 Financials</h2>
+              <div class="space-y-3 text-sm">
+                <div class="flex justify-between"><span>Revenue:</span><span class="font-mono text-green-400">$28.0M</span></div>
+                <div class="flex justify-between"><span>EBITDA:</span><span class="font-mono">$4.48M</span></div>
+                <div class="flex justify-between"><span>EBITDA Margin:</span><span class="font-mono text-green-400">16.0%</span></div>
+                <div class="flex justify-between"><span>Net Income:</span><span class="font-mono">$2.39M</span></div>
+                <div class="flex justify-between"><span>Cash:</span><span class="font-mono">$3.18M</span></div>
+                <div class="flex justify-between"><span>Debt:</span><span class="font-mono text-yellow-400">$4.62M</span></div>
+                <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">DSCR:</span><span class="font-mono font-bold text-green-400">1.93x</span></div>
+              </div>
+            </div>
+
+            <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+              <h2 class="text-xl font-bold mb-4">Immediate Crises</h2>
+              <ul class="text-gray-300 space-y-2 text-sm">
+                <li>✗ Union election in 45 days</li>
+                <li>✗ Plant at 87% utilization — losing bids</li>
+                <li>✗ Deferred maintenance: $866K backlog</li>
+                <li>✗ Regions Bank meeting required by Jan 15</li>
+                <li>✗ Estimator has outside offer</li>
+                <li>✗ Mother wants more money; sister wants "fairness"</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gradient-to-r from-red-900/20 to-orange-900/20 border border-red-800 rounded-lg p-6 mb-8">
+          <h2 class="text-xl font-bold mb-2">The Margin Is Extraction, Not Competence</h2>
+          <p class="text-gray-300 text-sm mb-4">The 16% EBITDA margin rests on three pillars:</p>
+          <ul class="text-gray-300 space-y-2 text-sm">
+            <li><strong>Labor compression:</strong> 29 workers at $19.50/hr in a $27–28 market. Annual underpayment: ~$452,000.</li>
+            <li><strong>Deferred maintenance:</strong> $866,000 in replacement backlog. Equipment functional until it isn't.</li>
+            <li><strong>Mike Castellano:</strong> Makes $78,000, knows everything, hasn't quit yet. If he leaves, the margin collapses.</li>
+          </ul>
+        </div>
+
+        <div class="text-center">
+          <button class="btn-primary text-lg px-8 py-3" onclick="startGame()">Begin Game</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME PAGE -->
+  <div id="gamePage" class="page">
+    <div class="min-h-screen flex flex-col">
+      <div class="border-b border-gray-800 bg-gradient-to-b from-gray-900 to-black">
+        <div class="max-w-6xl mx-auto px-4 py-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h1 class="text-3xl font-bold">Asford Materials</h1>
+              <p class="text-gray-400 text-sm mt-1" id="yearDisplay">Year 0 (2026)</p>
+            </div>
+            <div class="text-right">
+              <p class="text-gray-400 text-sm">Cash: <span class="font-mono text-green-400" id="cashDisplay">$3.2M</span></p>
+              <p class="text-gray-400 text-sm">DSCR: <span class="font-mono text-green-400" id="dscrDisplay">1.93x</span></p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6 border-b border-gray-800 pb-4">
+          <button class="tab-button active" onclick="switchTab('strategy')">Strategy</button>
+          <button class="tab-button" onclick="switchTab('chat')">Advisor Chat</button>
+          <button class="tab-button" onclick="switchTab('stocks')">Stock Portfolio</button>
+          <button class="tab-button" onclick="switchTab('metrics')">Metrics</button>
+        </div>
+
+        <!-- STRATEGY TAB -->
+        <div id="strategyTab" class="tab-content">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="lg:col-span-2">
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4">Year Summary</h2>
+                <div id="narrativeText" class="narrative-text min-h-48">
+                  You've inherited Asford Materials. The plant is maxed out, the union is organizing, and your father left you a mess. What's your move?
+                </div>
+              </div>
+
+              <div class="space-y-3">
+                <textarea 
+                  id="directiveInput" 
+                  placeholder="What's your strategy? (e.g., expand capacity, cut costs, negotiate with union, refinance debt)"
+                  class="input-field w-full resize-none"
+                  rows="3"
+                ></textarea>
+                <div class="flex gap-3">
+                  <button class="btn-primary flex-1" onclick="submitDirective()">Execute Strategy</button>
+                  <button class="btn-secondary" onclick="resetGame()">Reset Game</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="metric-card">
+                <div class="metric-label">Revenue</div>
+                <div class="metric-value status-good" id="revDisplay">$28.0M</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">EBITDA Margin</div>
+                <div class="metric-value status-good" id="marginDisplay">16.0%</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Net Income</div>
+                <div class="metric-value status-good" id="netDisplay">$2.4M</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">Total Debt</div>
+                <div class="metric-value status-warning" id="debtDisplay">$4.6M</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHAT TAB -->
+        <div id="chatTab" class="tab-content hidden">
+          <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+            <h2 class="text-xl font-bold mb-4">Advisor Chat</h2>
+            <div id="chatHistory" class="bg-black rounded-lg p-4 mb-4 h-96 overflow-y-auto border border-gray-800">
+              <div class="chat-bubble chat-assistant">
+                <p class="text-sm">Hi Connor. I'm here to help you navigate this business. Ask me anything about strategy, market conditions, or your options.</p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <input 
+                id="chatInput" 
+                type="text" 
+                placeholder="Ask your advisor..."
+                class="input-field flex-1"
+                onkeypress="if(event.key==='Enter') sendChat()"
+              >
+              <button class="btn-primary btn-sm" onclick="sendChat()">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- STOCKS TAB -->
+        <div id="stocksTab" class="tab-content hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2">
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4">Stock Portfolio</h2>
+                <div id="portfolioList" class="space-y-4">
+                  <p class="text-gray-400 text-sm">No positions yet. Buy stocks to start investing.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+                <h2 class="text-lg font-bold mb-4">Trade</h2>
+                <div class="space-y-3">
+                  <div>
+                    <label class="text-sm text-gray-400">Ticker</label>
+                    <input id="stockTicker" type="text" value="ASFD" class="input-field w-full" placeholder="e.g., ASFD">
+                  </div>
+                  <div>
+                    <label class="text-sm text-gray-400">Shares</label>
+                    <input id="stockShares" type="number" class="input-field w-full" placeholder="100">
+                  </div>
+                  <button class="btn-primary w-full btn-sm" onclick="buyStock()">Buy</button>
+                  <button class="btn-secondary w-full btn-sm" onclick="sellStock()">Sell</button>
+                </div>
+              </div>
+
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+                <h2 class="text-lg font-bold mb-4">Stock Info</h2>
+                <div id="stockInfo" class="space-y-2 text-sm">
+                  <p class="text-gray-400">Select a stock to view details</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- METRICS TAB -->
+        <div id="metricsTab" class="tab-content hidden">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div class="metric-card">
+              <div class="metric-label">Revenue</div>
+              <div class="metric-value status-good" id="metRevenue">$28.0M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">EBITDA</div>
+              <div class="metric-value status-good" id="metEbitda">$4.5M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">EBITDA Margin</div>
+              <div class="metric-value status-good" id="metMargin">16.0%</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Net Income</div>
+              <div class="metric-value status-good" id="metNet">$2.4M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Cash</div>
+              <div class="metric-value status-good" id="metCash">$3.2M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Total Debt</div>
+              <div class="metric-value status-warning" id="metDebt">$4.6M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">DSCR</div>
+              <div class="metric-value status-good" id="metDscr">1.93x</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">CapEx</div>
+              <div class="metric-value status-good" id="metCapex">$0</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Dividend Paid</div>
+              <div class="metric-value status-good" id="metDividend">$0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://web-production-c89c7.up.railway.app";
+    let gameId = null;
+    let currentYear = 0;
+
+    function formatCurrency(num) {
+      if (num >= 1000000) return '$' + (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return '$' + (num / 1000).toFixed(0) + 'K';
+      return '$' + num.toFixed(0);
+    }
+
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+      document.getElementById(tabName + 'Tab').classList.remove('hidden');
+      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    async function startGame() {
+      try {
+        const res = await fetch(API_URL + '/game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player_name: 'Connor Asford' })
+        });
+        const data = await res.json();
+        gameId = data.game_id;
+        currentYear = 0;
+        showPage('gamePage');
+      } catch (e) {
+        alert('Failed to create game: ' + e.message);
+      }
+    }
+
+    async function submitDirective() {
+      if (!gameId) { alert('Game not initialized'); return; }
+      const input = document.getElementById('directiveInput');
+      const directive = input.value.trim();
+      if (!directive) return;
+      
+      const button = event.target;
+      button.disabled = true;
+      button.textContent = 'Processing...';
+      
+      const nextYear = currentYear + 1;
+      
+      try {
+        const res = await fetch(API_URL + '/fastforward', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: nextYear, directives: [directive] })
+        });
+        
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        currentYear = nextYear;
+        
+        // Update display
+        document.getElementById('yearDisplay').textContent = 'Year ' + nextYear + ' (202' + (6 + nextYear) + ')';
+        document.getElementById('revDisplay').textContent = formatCurrency(data.financial_summary.revenue);
+        document.getElementById('marginDisplay').textContent = (data.financial_summary.ebitda_margin * 100).toFixed(1) + '%';
+        document.getElementById('netDisplay').textContent = formatCurrency(data.financial_summary.net_income);
+        document.getElementById('cashDisplay').textContent = formatCurrency(data.financial_summary.cash);
+        document.getElementById('debtDisplay').textContent = formatCurrency(data.financial_summary.debt);
+        document.getElementById('dscrDisplay').textContent = data.financial_summary.dscr.toFixed(2) + 'x';
+        document.getElementById('narrativeText').innerHTML = data.narrative;
+        
+        // Update metrics tab
+        document.getElementById('metRevenue').textContent = formatCurrency(data.financial_summary.revenue);
+        document.getElementById('metEbitda').textContent = formatCurrency(data.financial_summary.ebitda);
+        document.getElementById('metMargin').textContent = (data.financial_summary.ebitda_margin * 100).toFixed(1) + '%';
+        document.getElementById('metNet').textContent = formatCurrency(data.financial_summary.net_income);
+        document.getElementById('metCash').textContent = formatCurrency(data.financial_summary.cash);
+        document.getElementById('metDebt').textContent = formatCurrency(data.financial_summary.debt);
+        document.getElementById('metDscr').textContent = data.financial_summary.dscr.toFixed(2) + 'x';
+        
+        input.value = '';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Execute Strategy';
+      }
+    }
+
+    async function sendChat() {
+      if (!gameId) return;
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+      if (!message) return;
+      
+      const chatHistory = document.getElementById('chatHistory');
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble chat-user';
+      userBubble.innerHTML = '<p class="text-sm">' + message + '</p>';
+      chatHistory.appendChild(userBubble);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+      
+      input.value = '';
+      
+      try {
+        const res = await fetch(API_URL + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: currentYear, message: message })
+        });
+        const data = await res.json();
+        
+        const assistantBubble = document.createElement('div');
+        assistantBubble.className = 'chat-bubble chat-assistant';
+        assistantBubble.innerHTML = '<p class="text-sm">' + data.assistant_message + '</p>';
+        chatHistory.appendChild(assistantBubble);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+      } catch (e) {
+        console.error('Chat error:', e);
+      }
+    }
+
+    async function buyStock() {
+      if (!gameId) return;
+      const ticker = document.getElementById('stockTicker').value;
+      const shares = parseFloat(document.getElementById('stockShares').value);
+      if (!shares) return;
+      
+      try {
+        const res = await fetch(API_URL + '/stock/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'buy', ticker: ticker, shares: shares })
+        });
+        const data = await res.json();
+        alert(data.message);
+        document.getElementById('stockShares').value = '';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function sellStock() {
+      if (!gameId) return;
+      const ticker = document.getElementById('stockTicker').value;
+      const shares = parseFloat(document.getElementById('stockShares').value);
+      if (!shares) return;
+      
+      try {
+        const res = await fetch(API_URL + '/stock/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'sell', ticker: ticker, shares: shares })
+        });
+        const data = await res.json();
+        alert(data.message);
+        document.getElementById('stockShares').value = '';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    function resetGame() {
+      gameId = null;
+      currentYear = 0;
+      document.getElementById('directiveInput').value = '';
+      showPage('openingPage');
+    }
+  </script>
+</body>
+</html>
+

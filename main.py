@@ -1,19 +1,34 @@
+"""
+Asford Materials Hyperrealism Empire Builder
+Backend API for business simulation game
+
+ARCHITECTURE:
+1. Python Finance Engine - Pure math, deterministic
+2. LLM Game Master - Narrative only, minimal context
+3. PostgreSQL - State persistence (handles 15+ years)
+
+Flow:
+- User enters directive
+- Python runs FinanceEngine (arithmetic)
+- Backend queries PostgreSQL for prior narrative
+- Backend calls DeepSeek with: current financials + prior narrative only
+- DeepSeek generates narrative
+- Backend saves to PostgreSQL
+- Frontend displays results
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
-from duckduckgo_search import DDGS
+import os
 
-# Import engines from their respective modules
+# Import engines
 from textfile_1 import FinanceEngine
-from narrative_engine import (
-    NarrativeEngine,
-    FinancialSnapshot,
-    CompanyState,
-    RelationshipState,
-    EventMemory,
-)
+from narrative_engine import NarrativeEngine, FinancialSnapshot
+from stock_engine import StockEngine, StockPosition
+from database import GameDatabase
 
 app = FastAPI(title="Asford Materials Hyperrealism Engine")
 
@@ -24,53 +39,86 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global narrative engine instance (maintains trust scores across requests)
+# Initialize
+db = GameDatabase()
+db.init_schema()
 narrative_engine = NarrativeEngine()
+stock_engine = StockEngine()
+finance_engine = FinanceEngine()
 
 
-class DecisionRequest(BaseModel):
-    year: int
-    quarter: int
+# ===== REQUEST MODELS =====
+
+class CreateGameRequest(BaseModel):
     player_name: str = "Connor Asford"
-    directives: List[str]
-    entities_involved: List[str] = []
 
 
 class FastForwardRequest(BaseModel):
+    game_id: str
     year: int
     directives: List[str] = []
-    prior_narrative: Optional[str] = None  # Last year's narrative for continuity
-    prior_year_financials: Optional[Dict] = None  # Prior year's end-of-year snapshot only
 
 
-class SearchRequest(BaseModel):
-    query: str
-    context: Optional[str] = None
+class ChatRequest(BaseModel):
+    game_id: str
+    year: int
+    message: str
 
+
+class StockActionRequest(BaseModel):
+    game_id: str
+    year: int
+    action: str  # "buy", "sell", "toggle_drip"
+    ticker: str
+    shares: Optional[float] = None
+
+
+# ===== ENDPOINTS =====
 
 @app.get("/")
 async def root():
     return {
         "status": "ok",
         "app": "Asford Materials Hyperrealism Engine",
-        "trust_scores": narrative_engine.get_all_trust_scores(),
+        "endpoints": {
+            "POST /game": "Create new game session",
+            "POST /fastforward": "Advance one year (run finance model + generate narrative)",
+            "POST /chat": "Chat with advisor between moves",
+            "POST /stock/price": "Get stock price for ticker",
+            "POST /stock/action": "Buy/sell/toggle DRIP",
+            "GET /game/{game_id}": "Get full game state",
+            "GET /game/{game_id}/year/{year}": "Get specific year state",
+        }
     }
 
 
-@app.post("/decision")
-async def process_decision(req: DecisionRequest):
+@app.post("/game")
+async def create_game(req: CreateGameRequest):
     """
-    Process a player decision and return a structured response.
+    Create a new game session.
+    Initializes year 0 with baseline financials.
     """
-    validated = [{"directive": d, "valid": True, "cost": 0} for d in req.directives]
-
+    game_id = db.create_game(req.player_name)
+    
+    # Year 0 baseline
+    baseline = {
+        "revenue": 28_000_000.0,
+        "ebitda": 4_480_000.0,
+        "ebitda_margin": 16.0,
+        "net_income": 2_387_380.0,
+        "cash": 3_175_000.0,
+        "debt": 4_620_000.0,
+        "dscr": 1.93,
+        "capex": 0.0,
+        "dividend_paid": 0.0,
+    }
+    db.save_financials(game_id, 0, baseline)
+    
     return {
-        "year": req.year,
-        "quarter": req.quarter,
+        "game_id": game_id,
         "player_name": req.player_name,
-        "directives_validated": validated,
-        "company_state": {"status": "placeholder"},
-        "narrative": f"Player {req.player_name} issued {len(req.directives)} directive(s) in Q{req.quarter} {req.year}.",
+        "current_year": 0,
+        "financial_summary": baseline,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -78,172 +126,319 @@ async def process_decision(req: DecisionRequest):
 @app.post("/fastforward")
 async def fast_forward(req: FastForwardRequest):
     """
-    Fast-forward one year: run the financial model then generate narrative.
-
-    Request body:
-        year                    – target game year (e.g. 2027)
-        directives              – list of player directive strings
-        prior_narrative         – last year's narrative text (for continuity)
-        prior_year_financials   – prior year's end-of-year snapshot only (efficient)
-
-    Response:
-        year, directives, financial_summary, narrative, trust_scores, timestamp
+    Fast-forward one year.
+    
+    PROCESS:
+    1. Run FinanceEngine (pure math, deterministic)
+    2. Query PostgreSQL for prior narrative
+    3. Call DeepSeek with: current financials + prior narrative only
+    4. Save results to PostgreSQL
+    
+    This keeps DeepSeek token-efficient: ~500 tokens per year, regardless of game length.
     """
-    # Guaranteed-safe defaults
-    financial_summary: Dict = {
-        "revenue": 0.0,
-        "ebitda": 0.0,
-        "ebitda_margin": 0.0,
-        "net_income": 0.0,
-        "cash": 0.0,
-        "debt": 0.0,
-        "dscr": 0.0,
-        "covenant_breach": False,
-    }
-    narrative = ""
-    error = None
-
-    try:
-        # 1. Run financial model
-        financial_summary = FinanceEngine().fast_forward_year(req.year, req.directives)
-
-        # 2. Convert financial summary to FinancialSnapshot (current year)
-        fin = FinancialSnapshot(
-            year=req.year,
-            revenue=financial_summary.get("revenue", 0),
-            ebitda=financial_summary.get("ebitda", 0),
-            ebitda_margin=financial_summary.get("ebitda_margin", 0),
-            net_income=financial_summary.get("net_income", 0),
-            cash=financial_summary.get("cash", 0),
-            total_debt=financial_summary.get("debt", 0),
-            dscr=financial_summary.get("dscr", 0),
-            dividend_paid=financial_summary.get("dividend_paid", 0),
-            capex=financial_summary.get("capex", 0),
-        )
-
-        # 3. Create company state
-        company = CompanyState(
-            name="Asford Materials",
-            cash=financial_summary.get("cash", 0),
-            total_debt=financial_summary.get("debt", 0),
-            revenue_annual=financial_summary.get("revenue", 0),
-            ebitda_annual=financial_summary.get("ebitda", 0),
-            net_income=financial_summary.get("net_income", 0),
-            dscr=financial_summary.get("dscr", 0),
-            founded_year=1978,
-        )
-
-        # 4. Convert prior year financials if provided (efficient: end-of-year snapshot only)
-        prior_fin = None
-        if req.prior_year_financials:
-            prior_fin = FinancialSnapshot(
-                year=req.year - 1,
-                revenue=req.prior_year_financials.get("revenue", 0),
-                ebitda=req.prior_year_financials.get("ebitda", 0),
-                ebitda_margin=req.prior_year_financials.get("ebitda_margin", 0),
-                net_income=req.prior_year_financials.get("net_income", 0),
-                cash=req.prior_year_financials.get("cash", 0),
-                total_debt=req.prior_year_financials.get("debt", 0),
-                dscr=req.prior_year_financials.get("dscr", 0),
-                dividend_paid=req.prior_year_financials.get("dividend_paid", 0),
-                capex=req.prior_year_financials.get("capex", 0),
-            )
-
-        # 5. Generate narrative with prior narrative and prior year snapshot
-        narrative = narrative_engine.narrate_year(
-            year=req.year,
-            fin=fin,
-            company=company,
-            events=[],  # Can be populated from database if needed
-            relationships=[],  # Can be populated from database if needed
-            prior_fin=prior_fin,  # Prior year's end-of-year snapshot only
-            prior_narrative=req.prior_narrative,  # Last year's narrative for continuity
-            directives=req.directives,
-        )
-
-    except Exception as e:
-        error = str(e)
-        narrative = f"Financial simulation encountered an error: {error}"
-
-    response = {
-        "year": req.year,
-        "directives": req.directives,
+    game_id = req.game_id
+    year = req.year
+    directives = req.directives
+    
+    # Verify game exists
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    # Save directives
+    for directive in directives:
+        db.save_directive(game_id, year, directive)
+    
+    # STEP 1: Run FinanceEngine (pure math)
+    financial_summary = finance_engine.fast_forward_year(year, directives)
+    
+    # Save financials
+    db.save_financials(game_id, year, financial_summary)
+    
+    # STEP 2: Get prior narrative from PostgreSQL (for continuity)
+    prior_narrative = None
+    if year > 0:
+        prior_narrative = db.get_narrative(game_id, year - 1)
+    
+    # STEP 3: Call DeepSeek with minimal context
+    fin = FinancialSnapshot(
+        year=year,
+        revenue=financial_summary["revenue"],
+        ebitda=financial_summary["ebitda"],
+        ebitda_margin=financial_summary["ebitda_margin"],
+        net_income=financial_summary["net_income"],
+        cash=financial_summary["cash"],
+        total_debt=financial_summary["debt"],
+        dscr=financial_summary["dscr"],
+    )
+    
+    narrative = narrative_engine.narrate_year(
+        year=year,
+        fin=fin,
+        prior_narrative=prior_narrative,
+        directives=directives,
+    )
+    
+    # STEP 4: Save narrative to PostgreSQL
+    db.save_narrative(game_id, year, narrative)
+    
+    # Update game year
+    db.update_game_year(game_id, year)
+    
+    return {
+        "game_id": game_id,
+        "year": year,
+        "directives": directives,
         "financial_summary": financial_summary,
         "narrative": narrative,
-        "trust_scores": narrative_engine.get_all_trust_scores(),
-        "timestamp": datetime.now().isoformat(),
-    }
-    if error:
-        response["error"] = error
-
-    return response
-
-
-@app.post("/trust/{entity_name}")
-async def update_trust(entity_name: str, delta: int, reason: str = ""):
-    """
-    Update an NPC's trust score.
-
-    Args:
-        entity_name: NPC name (e.g. 'mike_castellano')
-        delta: Change in trust score (-100 to +100)
-        reason: Optional reason for the change
-
-    Returns:
-        Updated trust score and all trust scores
-    """
-    new_score = narrative_engine.update_trust_score(entity_name, delta, reason)
-    return {
-        "entity_name": entity_name,
-        "new_score": new_score,
-        "reason": reason,
-        "all_trust_scores": narrative_engine.get_all_trust_scores(),
         "timestamp": datetime.now().isoformat(),
     }
 
 
-@app.get("/trust")
-async def get_trust_scores():
+@app.post("/chat")
+async def chat(req: ChatRequest):
     """
-    Get all current trust scores.
+    Chat with advisor between moves.
+    Maintains conversation history in PostgreSQL.
     """
-    return {
-        "trust_scores": narrative_engine.get_all_trust_scores(),
-        "timestamp": datetime.now().isoformat(),
-    }
+    game_id = req.game_id
+    year = req.year
+    user_message = req.message
+    
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    # Save user message
+    db.save_chat_message(game_id, year, "user", user_message)
+    
+    # Get conversation history (last 10 messages for context)
+    history = db.get_chat_messages(game_id, year)
+    
+    # Get current financials
+    financials = db.get_financials(game_id, year)
+    if not financials:
+        return {"error": f"No financials for year {year}"}, 404
+    
+    # Build prompt
+    prompt = f"""You are Connor Asford's business advisor in a simulation game.
 
+CURRENT YEAR: {year}
+COMPANY: Asford Materials, Inc.
 
-@app.post("/search")
-async def web_search(req: SearchRequest):
-    """
-    Search the web using DuckDuckGo and return structured results.
-    """
-    results = []
+CURRENT FINANCIALS:
+- Revenue: ${financials.get('revenue', 0):,.0f}
+- EBITDA Margin: {financials.get('ebitda_margin', 0):.1f}%
+- Cash: ${financials.get('cash', 0):,.0f}
+- Debt: ${financials.get('debt', 0):,.0f}
+- DSCR: {financials.get('dscr', 0):.2f}x
+
+RECENT CONVERSATION:
+"""
+    for msg in history[-10:]:
+        prompt += f"{msg['role'].upper()}: {msg['content']}\n"
+    
+    prompt += f"\nUSER: {user_message}\n\nADVISOR: "
+    
+    # Call DeepSeek
     try:
-        with DDGS() as ddgs:
-            for r in ddgs.text(req.query, max_results=5):
-                results.append(
-                    {
-                        "title": r.get("title"),
-                        "snippet": r.get("body"),
-                        "link": r.get("href"),
-                    }
-                )
-    except Exception as e:
-        return {
-            "query": req.query,
-            "results": [],
-            "error": str(e),
+        import requests
+        headers = {
+            "Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY')}",
+            "Content-Type": "application/json",
         }
-
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.7,
+            "max_tokens": 500,
+        }
+        response = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        if data.get("choices") and len(data["choices"]) > 0:
+            assistant_message = data["choices"][0]["message"]["content"].strip()
+        else:
+            assistant_message = "I'm unable to respond right now."
+    except Exception as e:
+        assistant_message = f"Error: {str(e)}"
+    
+    # Save assistant message
+    db.save_chat_message(game_id, year, "assistant", assistant_message)
+    
     return {
-        "query": req.query,
-        "results": results,
+        "game_id": game_id,
+        "year": year,
+        "user_message": user_message,
+        "assistant_message": assistant_message,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/stock/price")
+async def get_stock_price(game_id: str, year: int, ticker: str = "ASFD"):
+    """
+    Get current stock price.
+    LLM determines price based on company financials.
+    """
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    financials = db.get_financials(game_id, year)
+    if not financials:
+        return {"error": f"No financials for year {year}"}, 404
+    
+    # LLM determines stock price
+    stock_price = stock_engine._determine_stock_price(
+        ticker=ticker,
+        year=year,
+        company_financials=financials,
+    )
+    
+    return {
+        "ticker": stock_price.ticker,
+        "price": stock_price.price,
+        "dividend_per_share": stock_price.dividend_per_share,
+        "dividend_yield": stock_price.dividend_yield,
+        "market_sentiment": stock_price.market_sentiment,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.post("/stock/action")
+async def stock_action(req: StockActionRequest):
+    """
+    Buy, sell, or toggle DRIP for a stock.
+    """
+    game_id = req.game_id
+    year = req.year
+    action = req.action
+    ticker = req.ticker
+    shares = req.shares or 0
+    
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    financials = db.get_financials(game_id, year)
+    if not financials:
+        return {"error": f"No financials for year {year}"}, 404
+    
+    # Get stock price
+    stock_price = stock_engine._determine_stock_price(
+        ticker=ticker,
+        year=year,
+        company_financials=financials,
+    )
+    
+    # Get current position
+    position_dict = db.get_stock_position(game_id, year, ticker)
+    position = None
+    if position_dict:
+        position = StockPosition(
+            ticker=position_dict["ticker"],
+            shares=position_dict["shares"],
+            avg_cost=position_dict["avg_cost"],
+            current_price=position_dict["current_price"],
+            dividend_per_share=position_dict["dividend_per_share"],
+            drip_enabled=position_dict["drip_enabled"],
+        )
+    
+    cash = financials.get("cash", 0)
+    message = ""
+    
+    if action == "buy":
+        position, cash, message = stock_engine.buy_stock(position, stock_price, shares, cash)
+    elif action == "sell":
+        position, proceeds, message = stock_engine.sell_stock(position, stock_price, shares)
+        cash += proceeds
+    elif action == "toggle_drip":
+        if position:
+            position.drip_enabled = not position.drip_enabled
+            message = f"DRIP {'enabled' if position.drip_enabled else 'disabled'} for {ticker}"
+        else:
+            message = f"No position in {ticker}"
+    
+    # Save position
+    if position and position.shares > 0:
+        db.save_stock_position(
+            game_id, year, position.ticker, position.shares, position.avg_cost,
+            position.current_price, position.dividend_per_share, position.drip_enabled
+        )
+    
+    # Update cash
+    financials["cash"] = cash
+    db.save_financials(game_id, year, financials)
+    
+    return {
+        "game_id": game_id,
+        "year": year,
+        "action": action,
+        "ticker": ticker,
+        "message": message,
+        "position": {
+            "shares": position.shares if position else 0,
+            "avg_cost": position.avg_cost if position else 0,
+            "current_price": stock_price.price,
+            "market_value": stock_engine.get_position_value(position),
+            "gain_loss": stock_engine.get_position_gain(position),
+        } if position else None,
+        "cash": cash,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/game/{game_id}")
+async def get_game_state(game_id: str):
+    """Get full game state."""
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    financials = db.get_all_financials(game_id)
+    trust_scores = db.get_trust_scores(game_id)
+    
+    return {
+        "game": dict(game),
+        "financials": financials,
+        "trust_scores": trust_scores,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/game/{game_id}/year/{year}")
+async def get_year_state(game_id: str, year: int):
+    """Get state for a specific year."""
+    game = db.get_game(game_id)
+    if not game:
+        return {"error": f"Game {game_id} not found"}, 404
+    
+    financials = db.get_financials(game_id, year)
+    narrative = db.get_narrative(game_id, year)
+    directives = db.get_directives(game_id, year)
+    events = db.get_events(game_id, year)
+    stock_positions = db.get_all_stock_positions(game_id, year)
+    
+    return {
+        "game_id": game_id,
+        "year": year,
+        "financials": financials,
+        "narrative": narrative,
+        "directives": directives,
+        "events": events,
+        "stock_positions": stock_positions,
+        "timestamp": datetime.now().isoformat(),
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
