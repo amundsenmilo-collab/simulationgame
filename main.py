@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
-from duckduckgo_search import DDGS
 
 # Import engines from their respective modules
 from textfile_1 import FinanceEngine
@@ -11,9 +10,9 @@ from narrative_engine import (
     NarrativeEngine,
     FinancialSnapshot,
     CompanyState,
-    RelationshipState,
-    EventMemory,
 )
+from database import GameDatabase
+from github_integration import GitHubGameState
 
 app = FastAPI(title="Asford Materials Hyperrealism Engine")
 
@@ -24,28 +23,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global narrative engine instance (maintains trust scores across requests)
+# Global instances
 narrative_engine = NarrativeEngine()
+db = GameDatabase()
+github = GitHubGameState()
 
-
-class DecisionRequest(BaseModel):
-    year: int
-    quarter: int
-    player_name: str = "Connor Asford"
-    directives: List[str]
-    entities_involved: List[str] = []
+# Initialize database schema on startup
+try:
+    db.init_schema()
+except Exception as e:
+    print(f"[STARTUP] DB init warning: {e}")
 
 
 class FastForwardRequest(BaseModel):
     year: int
     directives: List[str] = []
-    prior_narrative: Optional[str] = None  # Last year's narrative for continuity
-    prior_year_financials: Optional[Dict] = None  # Prior year's end-of-year snapshot only
-
-
-class SearchRequest(BaseModel):
-    query: str
-    context: Optional[str] = None
 
 
 @app.get("/")
@@ -57,39 +49,19 @@ async def root():
     }
 
 
-@app.post("/decision")
-async def process_decision(req: DecisionRequest):
-    """
-    Process a player decision and return a structured response.
-    """
-    validated = [{"directive": d, "valid": True, "cost": 0} for d in req.directives]
-
-    return {
-        "year": req.year,
-        "quarter": req.quarter,
-        "player_name": req.player_name,
-        "directives_validated": validated,
-        "company_state": {"status": "placeholder"},
-        "narrative": f"Player {req.player_name} issued {len(req.directives)} directive(s) in Q{req.quarter} {req.year}.",
-        "timestamp": datetime.now().isoformat(),
-    }
-
-
 @app.post("/fastforward")
 async def fast_forward(req: FastForwardRequest):
     """
     Fast-forward one year: run the financial model then generate narrative.
-
-    Request body:
-        year                    – target game year (e.g. 2027)
-        directives              – list of player directive strings
-        prior_narrative         – last year's narrative text (for continuity)
-        prior_year_financials   – prior year's end-of-year snapshot only (efficient)
-
-    Response:
-        year, directives, financial_summary, narrative, trust_scores, timestamp
+    
+    ARCHITECTURE (Token Efficient):
+    1. FinanceEngine: Pure arithmetic, no LLM
+    2. Database: Stores all state (financials, trust scores, events)
+    3. GitHub: Stores narrative history (one commit per year)
+    4. DeepSeek: Only reads current year + last narrative + prior snapshot
+    
+    This way DeepSeek never tracks 10+ years of history—it just reads the summary.
     """
-    # Guaranteed-safe defaults
     financial_summary: Dict = {
         "revenue": 0.0,
         "ebitda": 0.0,
@@ -104,10 +76,18 @@ async def fast_forward(req: FastForwardRequest):
     error = None
 
     try:
-        # 1. Run financial model
+        # 1. Run financial model (pure arithmetic, no LLM)
         financial_summary = FinanceEngine().fast_forward_year(req.year, req.directives)
 
-        # 2. Convert financial summary to FinancialSnapshot (current year)
+        # 2. Get prior narrative from GitHub (or database fallback)
+        prior_narrative = github.get_year_narrative(req.year - 1)
+        if not prior_narrative:
+            prior_narrative = db.get_prior_narrative(req.year)
+
+        # 3. Get prior financials from database
+        prior_fin_dict = db.get_prior_financials(req.year)
+
+        # 4. Convert to FinancialSnapshot objects
         fin = FinancialSnapshot(
             year=req.year,
             revenue=financial_summary.get("revenue", 0),
@@ -121,7 +101,22 @@ async def fast_forward(req: FastForwardRequest):
             capex=financial_summary.get("capex", 0),
         )
 
-        # 3. Create company state
+        prior_fin = None
+        if prior_fin_dict:
+            prior_fin = FinancialSnapshot(
+                year=prior_fin_dict.get("year", req.year - 1),
+                revenue=prior_fin_dict.get("revenue", 0),
+                ebitda=prior_fin_dict.get("ebitda", 0),
+                ebitda_margin=prior_fin_dict.get("ebitda_margin", 0),
+                net_income=prior_fin_dict.get("net_income", 0),
+                cash=prior_fin_dict.get("cash", 0),
+                total_debt=prior_fin_dict.get("total_debt", 0),
+                dscr=prior_fin_dict.get("dscr", 0),
+                dividend_paid=prior_fin_dict.get("dividend_paid", 0),
+                capex=prior_fin_dict.get("capex", 0),
+            )
+
+        # 5. Create company state
         company = CompanyState(
             name="Asford Materials",
             cash=financial_summary.get("cash", 0),
@@ -133,37 +128,39 @@ async def fast_forward(req: FastForwardRequest):
             founded_year=1978,
         )
 
-        # 4. Convert prior year financials if provided (efficient: end-of-year snapshot only)
-        prior_fin = None
-        if req.prior_year_financials:
-            prior_fin = FinancialSnapshot(
-                year=req.year - 1,
-                revenue=req.prior_year_financials.get("revenue", 0),
-                ebitda=req.prior_year_financials.get("ebitda", 0),
-                ebitda_margin=req.prior_year_financials.get("ebitda_margin", 0),
-                net_income=req.prior_year_financials.get("net_income", 0),
-                cash=req.prior_year_financials.get("cash", 0),
-                total_debt=req.prior_year_financials.get("debt", 0),
-                dscr=req.prior_year_financials.get("dscr", 0),
-                dividend_paid=req.prior_year_financials.get("dividend_paid", 0),
-                capex=req.prior_year_financials.get("capex", 0),
-            )
+        # 6. Get trust scores from database
+        trust_scores_dict = db.get_trust_scores()
+        if trust_scores_dict:
+            narrative_engine.trust_scores = trust_scores_dict
 
-        # 5. Generate narrative with prior narrative and prior year snapshot
+        # 7. Generate narrative (DeepSeek only reads: current + last narrative + prior snapshot)
         narrative = narrative_engine.narrate_year(
             year=req.year,
             fin=fin,
             company=company,
-            events=[],  # Can be populated from database if needed
-            relationships=[],  # Can be populated from database if needed
-            prior_fin=prior_fin,  # Prior year's end-of-year snapshot only
-            prior_narrative=req.prior_narrative,  # Last year's narrative for continuity
+            events=[],
+            relationships=[],
+            prior_fin=prior_fin,
+            prior_narrative=prior_narrative,
             directives=req.directives,
         )
+
+        # 8. Save to database
+        db.save_year_result(
+            year=req.year,
+            financials=financial_summary,
+            narrative=narrative,
+            directives=req.directives,
+            trust_scores=narrative_engine.get_all_trust_scores(),
+        )
+
+        # 9. Commit to GitHub (narrative history)
+        github.commit_year(req.year, narrative, financial_summary)
 
     except Exception as e:
         error = str(e)
         narrative = f"Financial simulation encountered an error: {error}"
+        print(f"[ERROR] {error}")
 
     response = {
         "year": req.year,
@@ -181,69 +178,27 @@ async def fast_forward(req: FastForwardRequest):
 
 @app.post("/trust/{entity_name}")
 async def update_trust(entity_name: str, delta: int, reason: str = ""):
-    """
-    Update an NPC's trust score.
-
-    Args:
-        entity_name: NPC name (e.g. 'mike_castellano')
-        delta: Change in trust score (-100 to +100)
-        reason: Optional reason for the change
-
-    Returns:
-        Updated trust score and all trust scores
-    """
-    new_score = narrative_engine.update_trust_score(entity_name, delta, reason)
+    """Update an NPC's trust score in the database."""
+    new_score = db.update_trust_score(entity_name, delta)
     return {
         "entity_name": entity_name,
         "new_score": new_score,
         "reason": reason,
-        "all_trust_scores": narrative_engine.get_all_trust_scores(),
+        "all_trust_scores": db.get_trust_scores(),
         "timestamp": datetime.now().isoformat(),
     }
 
 
 @app.get("/trust")
 async def get_trust_scores():
-    """
-    Get all current trust scores.
-    """
+    """Get all current trust scores from database."""
     return {
-        "trust_scores": narrative_engine.get_all_trust_scores(),
+        "trust_scores": db.get_trust_scores(),
         "timestamp": datetime.now().isoformat(),
-    }
-
-
-@app.post("/search")
-async def web_search(req: SearchRequest):
-    """
-    Search the web using DuckDuckGo and return structured results.
-    """
-    results = []
-    try:
-        with DDGS() as ddgs:
-            for r in ddgs.text(req.query, max_results=5):
-                results.append(
-                    {
-                        "title": r.get("title"),
-                        "snippet": r.get("body"),
-                        "link": r.get("href"),
-                    }
-                )
-    except Exception as e:
-        return {
-            "query": req.query,
-            "results": [],
-            "error": str(e),
-        }
-
-    return {
-        "query": req.query,
-        "results": results,
     }
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
 

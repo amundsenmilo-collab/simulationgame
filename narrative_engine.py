@@ -9,6 +9,7 @@ import os
 import json
 import random
 import requests
+import re
 from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -31,71 +32,67 @@ THE COMPANY
 Asford Materials, Inc. C-corporation. Birmingham, Alabama. Heavy industrial. 7 acres. No rail.
 Products: RCP pipe, manholes, junction boxes, inlets, end treatments. DOT-adjacent, utility, commercial.
 
-The Plant — Birmingham
-Product Line | Annual Revenue | Capacity | Utilization
-RCP pipe | $9.2M | $10.5M | 88%
-Manholes | $6.1M | $7.0M | 87%
-Junction boxes | $5.6M | $6.4M | 88%
-Inlets/end treatments | $7.1M | $8.2M | 86%
-Total Precast | $28.0M | $32.1M | 87%
+OPENING BALANCE SHEET — January 1, 2026
+Assets: $7,795,000
+Liabilities: $4,620,000
+Equity: $3,175,000
 
-The Problem: The plant is maxed out. The equipment is old but functional. The father deferred maintenance for six years. The expansion bay (added 2019) is the only reason you hit $28M. The main bay is crumbling. The form shop roof is gone — tarpaulins and buckets. The batch plant needs a new mixer drum. The crane is 18 years old and has a hairline crack in the hook block. Mike has documented all of this. Your father filed the reports in a drawer.
+INCOME STATEMENT — Year 0 (Trailing Twelve Months)
+Revenue: $28,000,000
+EBITDA: $4,480,000
+Net Income: $2,387,380
 
-Land & Buildings: 7 acres, 14,000 sq ft, functional but tired, 14 years old, heavy industrial, no rail, no union.
+THE PROBLEM
+The plant is maxed out at 87% utilization. Equipment is old but functional. Deferred maintenance backlog: $866,000. The union election is 45 days away. 30% of workers showed interest in unionizing.
 
 THE MARGIN IS EXTRACTION, NOT COMPETENCE
-The EBITDA margin of 16% is real but brittle. It rests on three pillars:
+Labor compression: 29 production workers at $19.50/hr in a $27–28 market. Annual underpayment: ~$452,000.
+Deferred maintenance: $866,000 in replacement backlog.
+Mike Castellano: Makes $78,000, knows everything, hasn't quit yet.
 
-1. Labor compression. 29 production workers at $19.50/hour in a $26–28 market. Annual underpayment: ~$452,000 versus market. Barry III extracted this every year.
+YOUR POSITION
+Age: 25
+Education: UAB Civil Engineering
+Experience: 3 years in company (estimating, QC)
+Personal cash: $12,000
+Company salary: $65,000
+Debt: $180K condo mortgage, $180K lake house mortgage
+Inherited: Lake house (worth ~$340K)
 
-2. Deferred maintenance. $866,000 in replacement backlog. Equipment functional until it isn't. The crane hook block, batch mixer drum, and form shop roof are time bombs.
+IMMEDIATE CRISES
+1. Union election in 45 days (February 15, 2026)
+2. Plant at 87% utilization — losing bids due to capacity
+3. Deferred maintenance time bombs: crane hook block, batch mixer, form shop roof
+4. Regions Bank meeting required by January 15
+5. Estimator has outside offer; might leave
+6. Mother wants more money; sister wants "fairness"
 
-3. Mike Castellano. He makes $78,000, knows the operation completely, and has not quit. If he leaves, the margin collapses.
-
-Adjusted for market wages, EBITDA margin is 14.4% — healthy but unexceptional. The extra 1.6 points are the lie your father told."""
+GOAL: Hyperrealism Empire Builder
+Build fast, manage scale, or lose everything your grandfather built and your father drank away."""
 
 # Narrative format instruction
 NARRATIVE_FORMAT = """NARRATIVE FORMAT INSTRUCTION:
 
-You will narrate each year in a specific, grounded format. Here is an example for Year 5 (2030):
+You will narrate each year in a specific, grounded format. Here is an example for Year 1 (2027):
 
-January. The 2 new estimators start. Brian Holt, 31, formerly Forterra Atlanta. Marcus Webb, 27, UAB Civil Engineering, Connor's year. They train in Birmingham March 1–15, then rotate to Rockford March 16–31. High-end Airbnb in Sylacauga: $180/night × 14 nights × 2 rooms = $5,040. Per diem: $75/day × 14 × 2 = $2,100. They drive company F-150s. Brian hits a deer on US-280 March 18. The truck is repairable. The deer is not. $4,200 insurance deductible. Brian is fine. He does not mention the deer again.
+**January 2027.** Connor Asford sits in his father's office for the first time. The chair is still warm from Barry III's body. The desk has a ring from a sweating glass. The file drawer is full of Mike Castellano's reports — each one dated, each one stamped RECEIVED, each one unread. The crane hook block has a hairline crack. The batch mixer drum is 14 years old. The form shop roof is tarpaulins and buckets. Connor reads all of it. He calls Mike Castellano at 6:00 PM on January 3. Mike answers on the first ring. Connor says, "I'm not my father." Mike says, "I know." Connor says, "I want to replace everything this year. Operating cash. No debt." Mike is quiet for seven seconds. He says, "You can't. Not everything." Connor says, "Watch me."
 
-March 15. The lead estimator is promoted to Director of Estimating. Salary: $130,240. The $20,000 bonus is tied to Rockford's first-year DSCR. He does not know the target is 3.0x by Q4 2031. He knows his bonus is tied to "plant performance." He buys a bigger boat in October. He names it "The Underbid II."
-
-April 15. Rockford Phase 1 opens. The batch plant is operational. The first pour is a 48-inch RCP pipe for Jefferson County Utilities. Mike Castellano is on site at 5:30 AM. Connor is there at 5:45. The concrete is 4,000 psi, fly ash blend, same spec as Birmingham. The pipe cures 28 days. It passes QC. The second pour is May 3. By June, the plant produces 40 pipes a day, 12 manholes a week, 8 junction boxes. The metal fab shop is not yet operational — Wendell the GC is still installing the shear and press. It opens July 1.
-
-May. Three Rockford workers quit. Two are fired in June for showing up drunk. Darius Cole, the plant manager, hires replacements from Alexander City, Talladega, Sylacauga. The labor pool is thin. The quality is inconsistent. In July, a batch of 24-inch pipe fails slump test — too much water, not enough cement. $12,000 in scrap. Mike drives from Sylacauga (unit 3B) and spends 48 hours recalibrating the batch plant. He does not sleep. He fixes it. He says to Darius, "You call me before you call Connor. Always." Darius says, "Yes sir."
-
-July. The metal fab shop opens. The first ring and cover set is produced July 15. It is for a Birmingham DOT job, shipped from Rockford because the Birmingham fab shop is not yet built. The margin is negative — $18,000 in red ink before September. The "Proudly made in the USA by Asford Materials" stamp is applied. The paint is still wet when it ships. The stamp smudges. The DOT inspector does not notice.
-
-August. Patricia Holt visits Rockford. She wears hard boots and a Regions Bank polo. She walks the batch plant. She asks Darius about the July scrap loss. Darius tells her about Mike's 48-hour fix. She writes in her notebook. She asks Connor about the DSCR. He says, "1.57x this year. 2.5x next year. 3.2x the year after." She says, "You need 3.0x by Q4 2031. Not 2032." Connor says, "I know." She says, "Your personal guarantee is on file. Your lake house is on file. Your condo is on file. I hope you swim well." Connor does not swim well. He does not tell her.
-
-September. BBTW installs the vending machine. Rosa stocks it. Sandwiches from a Birmingham wholesaler ($3.50 cost, $6.50 sale), snacks from Sam's Club, detergent and dryer sheets from Dollar General. Revenue: $340/month. Cost of goods: $180. Net: $160/month. Rosa gets a $75/month stipend to stock it. She says, "I am not a store clerk." Connor gives her $100. She says, "Fine." The machine jams twice in August. Carl the handyman fixes it. He charges $40/hour. Connor pays him from BBTW. Derek from IT set up the SKU in Odoo: "VENDING-001." The revenue stream is tracked. It is $1,920/year. It is not material. It is tracked.
-
-October. The 2 engineers (hired Q2, deferred from 2029) begin writing specs. FEMA shelter designs. Wind foundation concepts. Prison module preliminary drawings. They have no orders. They have no permits. They have no customers. They have salaries: $130,000 each. Connor says, "Write it. Patent it. Wait." They write. They wait.
-
-November. Rockford produces its 10,000th pipe. Mike Castellano does not celebrate. He is 46. He lives in unit 3B of the Sylacauga apartment building. He has not taken a Saturday off since March 2029. He has $180,000 in savings. He still wants 5% of the company. Connor still has not answered. Harold Vance runs Birmingham. The plant is stable. The union is gone. The Odoo tablets show 94% uptime. The Director of Estimating wins a $4.2M DOT job in November — approach slabs for the I-59 widening. Margin: 11%. He does not get his $20,000 bonus. The DSCR is 1.57x. He buys a third boat anyway. He names it "The DSCR."
-
-December 31. The books close. No dividend from Asford Materials. The signal is sent: we are serious. The bank knows. Patricia Holt knows. The $938,186 cash is above the $500,000 minimum. The DSCR is 1.57x. The trajectory is 1.57x → 2.5x → 3.2x. If Rockford scales. If the specialty lines work. If the engineers write specs that someone buys. If the metal fab shop turns profitable. If Mike Castellano does not quit. If Connor Asford does not drown.
-
-Connor sits on the dock. It is 38 degrees. The water is black. The Boston Whaler is covered for winter. He has $340,000 in personal cash. He has a $9.5M company. He has a lake house with no mortgage. He has a mother who does not call. He has a sister who does not call. He has Mike Castellano, in unit 3B, in Sylacauga, running a plant that is not his, who wants 5%, who Connor will never give it to.
-
-He thinks about 2031. He thinks about the DSCR. He thinks about Patricia Holt, who hopes he swims well. He does not swim well. He does not tell her.
+**February 2027.** The office manager, Diane Foster, 58, pulls the ADEM replacement permit for the batch plant. She has worked at Asford Materials for 22 years. She knows where every form is filed. She knows that Barry III never filed anything on time. She submits the permit electronically at 8:14 AM. ADEM confirms receipt at 8:17 AM. Diane prints the confirmation and puts it on Connor's desk with a sticky note that says, "Your father never did this." Connor reads the note. He does not smile.
 
 KEY CHARACTERISTICS OF THIS FORMAT:
-- Specific dates and months (January, March 15, April 15, etc.)
-- Character names, ages, and details (Brian Holt, 31, formerly Forterra Atlanta)
-- Exact financial figures ($180/night, $5,040, $4,200 deductible)
+- Specific dates and months (January, February, etc.)
+- Character names, ages, and details (Diane Foster, 58, 22 years at Asford)
+- Exact financial figures ($78,000, $4,480,000, etc.)
 - Dialogue that reveals character motivation and stakes
-- Sensory details (38 degrees, black water, hard boots, wet paint)
+- Sensory details (warm chair, sweating glass, tarpaulins and buckets)
 - Embedded financial reality (DSCR targets, margins, cash positions)
-- Personal stakes and emotional truth (Connor does not swim well, Mike wants 5%, mother does not call)
-- Specific locations (unit 3B in Sylacauga, the dock, the batch plant)
-- Specific machines and equipment (Boston Whaler, F-150s, batch plant mixer)
-- Consequences and cause-and-effect (Brian hits deer → $4,200 deductible, pipe fails → $12,000 scrap)
+- Personal stakes and emotional truth (Connor does not smile, Mike is quiet for seven seconds)
+- Specific locations (the office, the batch plant, the break room)
+- Specific machines and equipment (crane hook block, batch mixer drum, form shop roof)
+- Consequences and cause-and-effect
 - Tone: Cold, unsentimental, objective. No cheerleading. The world is indifferent.
 - Length: 3-5 paragraphs, not a list. Tell a story.
+- Use **bold** for month/date headers and key moments.
 
 APPLY THIS FORMAT TO THE YEAR YOU ARE NARRATING."""
 
@@ -111,8 +108,8 @@ class FinancialSnapshot:
     cash: float
     total_debt: float
     dscr: float
-    dividend_paid: float
-    capex: float
+    dividend_paid: float = 0.0
+    capex: float = 0.0
 
 
 @dataclass
@@ -133,10 +130,10 @@ class RelationshipState:
     """NPC relationship snapshot."""
     entity_name: str
     trust_score: int  # 0-100
-    last_interaction: Optional[str]
-    key_facts: List[str]
-    promises_made: Optional[str]
-    promises_broken: int
+    last_interaction: Optional[str] = None
+    key_facts: Optional[List[str]] = None
+    promises_made: Optional[str] = None
+    promises_broken: int = 0
 
 
 @dataclass
@@ -202,6 +199,10 @@ class NarrativeEngine:
         else:
             return "hostile"
 
+    def _markdown_to_html(self, text: str) -> str:
+        """Convert markdown bold (**text**) to HTML <strong>text</strong>."""
+        return re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', text)
+
     def _build_deepseek_prompt(
         self,
         year: int,
@@ -252,10 +253,10 @@ Net Income: ${prior_fin.net_income:,.0f}
 Cash: ${prior_fin.cash:,.0f}
 Debt: ${prior_fin.total_debt:,.0f}
 DSCR: {prior_fin.dscr:.2f}x
-Dividend: ${prior_fin.dividend_paid:,.0f}
 
 LAST YEAR'S NARRATIVE:
 {prior_narrative if prior_narrative else "No prior narrative available."}
+
 
 """
 
@@ -298,6 +299,7 @@ Write the year {year} narrative in the format shown above. Reference last year's
 - Consequences and cause-and-effect
 - Cold, unsentimental, objective tone
 - 3-5 paragraphs, not a list
+- Use **bold** for month/date headers and key moments
 
 Remember: Connor is 25, quiet, observant, doesn't bluff. The margin is brittle. Mike Castellano is the linchpin. Patricia Holt watches the DSCR. The world is indifferent to Connor's youth or good intentions.
 
@@ -319,7 +321,7 @@ Write the narrative now:"""
                 "model": DEEPSEEK_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
-                "max_tokens": 1200,
+                "max_tokens": 1500,
             }
             response = requests.post(
                 DEEPSEEK_URL,
@@ -391,6 +393,8 @@ Write the narrative now:"""
                 year, fin, company, fragments, year_type
             )
 
+        # Convert markdown bold to HTML
+        narrative = self._markdown_to_html(narrative)
         return narrative
 
     def _classify_year(
@@ -459,7 +463,7 @@ Write the narrative now:"""
         fragments["closes"].extend([
             "The books closed December 31. The accountant worked until 9 PM.",
             "Connor signed the year-end statements at 11 PM, alone in the office.",
-            "The CHOMEX break room was empty when he walked through. The Sharpie was still there.",
+            "The break room was empty when he walked through. The Sharpie was still there.",
         ])
         return fragments
 

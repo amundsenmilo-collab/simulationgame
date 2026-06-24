@@ -4,14 +4,14 @@ from typing import Dict, List
 # 2026 baseline financials for Asford Materials
 BASELINE = {
     "year": 2026,
-    "revenue": 4_800_000.0,
+    "revenue": 28_000_000.0,  # FIXED: was 4.8M, should be 28M
     "cogs_ratio": 0.62,        # cost of goods as % of revenue
     "opex": 980_000.0,         # fixed operating expenses
     "depreciation": 120_000.0,
     "interest": 95_000.0,
     "tax_rate": 0.26,
-    "debt": 1_200_000.0,
-    "cash": 540_000.0,
+    "debt": 4_620_000.0,       # FIXED: was 1.2M, should be 4.62M
+    "cash": 3_175_000.0,       # FIXED: was 540K, should be 3.175M
     "annual_debt_service": 180_000.0,
 }
 
@@ -148,3 +148,4 @@ class FinanceEngine:
             "dscr":           dscr,
             "covenant_breach": covenant_breach,
         }
+
