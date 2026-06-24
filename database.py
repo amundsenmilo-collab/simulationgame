@@ -1,20 +1,18 @@
 """
-Database layer for Asford Materials game state.
-Stores financials, trust scores, events, decisions, relationships.
-Keeps DeepSeek token-efficient by only passing last narrative + prior snapshot.
+PostgreSQL models and queries for Asford Materials game state.
+Tracks games, financials, events, relationships, and narratives.
 """
 import os
-import json
-from typing import Dict, List, Optional
 from datetime import datetime
+from typing import Optional, List, Dict
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/asford")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 class GameDatabase:
-    """PostgreSQL backend for game state."""
+    """PostgreSQL interface for game state management."""
 
     def __init__(self):
         self.conn_string = DATABASE_URL
@@ -24,246 +22,323 @@ class GameDatabase:
         return psycopg2.connect(self.conn_string)
 
     def init_schema(self):
-        """Initialize database schema if not exists."""
+        """Create tables if they don't exist."""
         conn = self._get_conn()
         cur = conn.cursor()
-        try:
-            # Companies
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS companies (
-                    id SERIAL PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE,
-                    entity_type TEXT DEFAULT 'C-corp',
-                    founded_year INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
 
-            # Relationships (NPC trust scores)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS relationships (
-                    id SERIAL PRIMARY KEY,
-                    entity_name TEXT NOT NULL UNIQUE,
-                    entity_type TEXT DEFAULT 'person',
-                    trust_score INTEGER DEFAULT 50 CHECK(trust_score BETWEEN 0 AND 100),
-                    last_interaction DATE,
-                    key_facts JSONB DEFAULT '[]',
-                    promises_made TEXT,
-                    promises_broken INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Games table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS games (
+                game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                player_name VARCHAR(255) NOT NULL,
+                current_year INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
 
-            # Financial Snapshots (year-end only)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS financials (
-                    id SERIAL PRIMARY KEY,
-                    year INTEGER NOT NULL UNIQUE,
-                    revenue REAL,
-                    ebitda REAL,
-                    ebitda_margin REAL,
-                    net_income REAL,
-                    cash REAL,
-                    total_debt REAL,
-                    dscr REAL,
-                    dividend_paid REAL DEFAULT 0,
-                    capex REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Financials table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS financials (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                revenue FLOAT NOT NULL,
+                ebitda FLOAT NOT NULL,
+                ebitda_margin FLOAT NOT NULL,
+                net_income FLOAT NOT NULL,
+                cash FLOAT NOT NULL,
+                total_debt FLOAT NOT NULL,
+                dscr FLOAT NOT NULL,
+                capex FLOAT DEFAULT 0,
+                dividend_paid FLOAT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(game_id, year)
+            );
+        """)
 
-            # Events (what happened each year)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS events (
-                    id SERIAL PRIMARY KEY,
-                    year INTEGER,
-                    event_type TEXT,
-                    description TEXT NOT NULL,
-                    entities_involved JSONB DEFAULT '[]',
-                    financial_impact REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Narratives table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS narratives (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                narrative_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(game_id, year)
+            );
+        """)
 
-            # Decisions (player directives)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS decisions (
-                    id SERIAL PRIMARY KEY,
-                    year INTEGER,
-                    directive_text TEXT NOT NULL,
-                    outcome TEXT,
-                    financial_impact REAL DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Events table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS events (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                event_type VARCHAR(255) NOT NULL,
+                description TEXT NOT NULL,
+                financial_impact FLOAT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
 
-            # Narrative Log (for GitHub commits)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS narrative_log (
-                    id SERIAL PRIMARY KEY,
-                    year INTEGER NOT NULL UNIQUE,
-                    narrative_text TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Relationships table (NPC trust scores)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS relationships (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                npc_name VARCHAR(255) NOT NULL,
+                trust_score INT DEFAULT 50,
+                last_interaction TEXT,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(game_id, npc_name)
+            );
+        """)
 
-            conn.commit()
-            print("[DB] Schema initialized")
-        except Exception as e:
-            conn.rollback()
-            print(f"[DB] Schema init error: {e}")
-        finally:
-            cur.close()
-            conn.close()
+        # Directives table (player decisions)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS directives (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                directive_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
 
-    def save_year_result(
-        self,
-        year: int,
-        financials: Dict,
-        narrative: str,
-        directives: List[str],
-        trust_scores: Dict[str, int],
-    ):
-        """Save a complete year result to database."""
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    # ===== GAMES =====
+
+    def create_game(self, player_name: str) -> str:
+        """Create a new game session. Returns game_id."""
         conn = self._get_conn()
         cur = conn.cursor()
-        try:
-            # Save financials
-            cur.execute("""
-                INSERT INTO financials (year, revenue, ebitda, ebitda_margin, net_income, cash, total_debt, dscr, dividend_paid, capex)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (year) DO UPDATE SET
-                    revenue = EXCLUDED.revenue,
-                    ebitda = EXCLUDED.ebitda,
-                    ebitda_margin = EXCLUDED.ebitda_margin,
-                    net_income = EXCLUDED.net_income,
-                    cash = EXCLUDED.cash,
-                    total_debt = EXCLUDED.total_debt,
-                    dscr = EXCLUDED.dscr
-            """, (
+        cur.execute(
+            "INSERT INTO games (player_name, current_year) VALUES (%s, %s) RETURNING game_id;",
+            (player_name, 0),
+        )
+        game_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return str(game_id)
+
+    def get_game(self, game_id: str) -> Optional[Dict]:
+        """Get game metadata."""
+        conn = self._get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM games WHERE game_id = %s;", (game_id,))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return dict(result) if result else None
+
+    def update_game_year(self, game_id: str, year: int):
+        """Update current year for a game."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE games SET current_year = %s, updated_at = NOW() WHERE game_id = %s;",
+            (year, game_id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    # ===== FINANCIALS =====
+
+    def save_financials(self, game_id: str, year: int, financials: Dict):
+        """Save year-end financials."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO financials 
+            (game_id, year, revenue, ebitda, ebitda_margin, net_income, cash, total_debt, dscr, capex, dividend_paid)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (game_id, year) DO UPDATE SET
+                revenue = EXCLUDED.revenue,
+                ebitda = EXCLUDED.ebitda,
+                ebitda_margin = EXCLUDED.ebitda_margin,
+                net_income = EXCLUDED.net_income,
+                cash = EXCLUDED.cash,
+                total_debt = EXCLUDED.total_debt,
+                dscr = EXCLUDED.dscr,
+                capex = EXCLUDED.capex,
+                dividend_paid = EXCLUDED.dividend_paid;
+            """,
+            (
+                game_id,
                 year,
-                financials.get("revenue"),
-                financials.get("ebitda"),
-                financials.get("ebitda_margin"),
-                financials.get("net_income"),
-                financials.get("cash"),
-                financials.get("debt"),
-                financials.get("dscr"),
-                financials.get("dividend_paid", 0),
+                financials.get("revenue", 0),
+                financials.get("ebitda", 0),
+                financials.get("ebitda_margin", 0),
+                financials.get("net_income", 0),
+                financials.get("cash", 0),
+                financials.get("debt", 0),
+                financials.get("dscr", 0),
                 financials.get("capex", 0),
-            ))
+                financials.get("dividend_paid", 0),
+            ),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
 
-            # Save narrative
-            cur.execute("""
-                INSERT INTO narrative_log (year, narrative_text)
-                VALUES (%s, %s)
-                ON CONFLICT (year) DO UPDATE SET narrative_text = EXCLUDED.narrative_text
-            """, (year, narrative))
-
-            # Save directives as decision
-            cur.execute("""
-                INSERT INTO decisions (year, directive_text)
-                VALUES (%s, %s)
-            """, (year, "; ".join(directives)))
-
-            # Update trust scores
-            for entity_name, score in trust_scores.items():
-                cur.execute("""
-                    INSERT INTO relationships (entity_name, trust_score, last_interaction)
-                    VALUES (%s, %s, CURRENT_DATE)
-                    ON CONFLICT (entity_name) DO UPDATE SET
-                        trust_score = EXCLUDED.trust_score,
-                        last_interaction = CURRENT_DATE
-                """, (entity_name, score))
-
-            conn.commit()
-            print(f"[DB] Year {year} saved")
-        except Exception as e:
-            conn.rollback()
-            print(f"[DB] Save error: {e}")
-        finally:
-            cur.close()
-            conn.close()
-
-    def get_prior_narrative(self, year: int) -> Optional[str]:
-        """Get last year's narrative (for DeepSeek context)."""
+    def get_financials(self, game_id: str, year: int) -> Optional[Dict]:
+        """Get financials for a specific year."""
         conn = self._get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("""
-                SELECT narrative_text FROM narrative_log WHERE year = %s
-            """, (year - 1,))
-            row = cur.fetchone()
-            return row["narrative_text"] if row else None
-        except Exception as e:
-            print(f"[DB] Get narrative error: {e}")
-            return None
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            "SELECT * FROM financials WHERE game_id = %s AND year = %s;",
+            (game_id, year),
+        )
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return dict(result) if result else None
 
-    def get_prior_financials(self, year: int) -> Optional[Dict]:
-        """Get prior year's financial snapshot (for DeepSeek context)."""
+    def get_all_financials(self, game_id: str) -> List[Dict]:
+        """Get all financials for a game."""
         conn = self._get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("""
-                SELECT * FROM financials WHERE year = %s
-            """, (year - 1,))
-            row = cur.fetchone()
-            return dict(row) if row else None
-        except Exception as e:
-            print(f"[DB] Get financials error: {e}")
-            return None
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            "SELECT * FROM financials WHERE game_id = %s ORDER BY year;",
+            (game_id,),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in results]
 
-    def get_trust_scores(self) -> Dict[str, int]:
-        """Get all current trust scores."""
+    # ===== NARRATIVES =====
+
+    def save_narrative(self, game_id: str, year: int, narrative: str):
+        """Save year narrative."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO narratives (game_id, year, narrative_text)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (game_id, year) DO UPDATE SET narrative_text = EXCLUDED.narrative_text;
+            """,
+            (game_id, year, narrative),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_narrative(self, game_id: str, year: int) -> Optional[str]:
+        """Get narrative for a specific year."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT narrative_text FROM narratives WHERE game_id = %s AND year = %s;",
+            (game_id, year),
+        )
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return result[0] if result else None
+
+    # ===== DIRECTIVES =====
+
+    def save_directive(self, game_id: str, year: int, directive: str):
+        """Save player directive."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO directives (game_id, year, directive_text) VALUES (%s, %s, %s);",
+            (game_id, year, directive),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_directives(self, game_id: str, year: int) -> List[str]:
+        """Get all directives for a year."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT directive_text FROM directives WHERE game_id = %s AND year = %s ORDER BY created_at;",
+            (game_id, year),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [r[0] for r in results]
+
+    # ===== RELATIONSHIPS =====
+
+    def update_trust_score(self, game_id: str, npc_name: str, delta: int):
+        """Update NPC trust score."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO relationships (game_id, npc_name, trust_score)
+            VALUES (%s, %s, 50)
+            ON CONFLICT (game_id, npc_name) DO UPDATE SET
+                trust_score = GREATEST(0, LEAST(100, relationships.trust_score + %s)),
+                updated_at = NOW();
+            """,
+            (game_id, npc_name, delta),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_trust_scores(self, game_id: str) -> Dict[str, int]:
+        """Get all NPC trust scores for a game."""
         conn = self._get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            cur.execute("SELECT entity_name, trust_score FROM relationships")
-            rows = cur.fetchall()
-            return {row["entity_name"]: row["trust_score"] for row in rows}
-        except Exception as e:
-            print(f"[DB] Get trust scores error: {e}")
-            return {}
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            "SELECT npc_name, trust_score FROM relationships WHERE game_id = %s;",
+            (game_id,),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return {r["npc_name"]: r["trust_score"] for r in results}
 
-    def update_trust_score(self, entity_name: str, delta: int) -> int:
-        """Update an NPC's trust score."""
+    # ===== EVENTS =====
+
+    def save_event(
+        self,
+        game_id: str,
+        year: int,
+        event_type: str,
+        description: str,
+        financial_impact: float = 0,
+    ):
+        """Save a game event."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO events (game_id, year, event_type, description, financial_impact)
+            VALUES (%s, %s, %s, %s, %s);
+            """,
+            (game_id, year, event_type, description, financial_impact),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_events(self, game_id: str, year: int) -> List[Dict]:
+        """Get all events for a year."""
         conn = self._get_conn()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            # Get current score
-            cur.execute("""
-                SELECT trust_score FROM relationships WHERE entity_name = %s
-            """, (entity_name,))
-            row = cur.fetchone()
-            old_score = row["trust_score"] if row else 50
-
-            new_score = max(0, min(100, old_score + delta))
-
-            # Update or insert
-            cur.execute("""
-                INSERT INTO relationships (entity_name, trust_score, last_interaction)
-                VALUES (%s, %s, CURRENT_DATE)
-                ON CONFLICT (entity_name) DO UPDATE SET
-                    trust_score = EXCLUDED.trust_score,
-                    last_interaction = CURRENT_DATE
-            """, (entity_name, new_score))
-
-            conn.commit()
-            return new_score
-        except Exception as e:
-            conn.rollback()
-            print(f"[DB] Update trust error: {e}")
-            return old_score
-        finally:
-            cur.close()
-            conn.close()
+        cur.execute(
+            "SELECT * FROM events WHERE game_id = %s AND year = %s ORDER BY created_at;",
+            (game_id, year),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in results]
 
