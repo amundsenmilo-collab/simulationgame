@@ -1,6 +1,6 @@
 """
 PostgreSQL models and queries for Asford Materials game state.
-Tracks games, financials, events, relationships, and narratives.
+Tracks games, financials, events, relationships, and stock positions.
 """
 import os
 from datetime import datetime
@@ -102,6 +102,50 @@ class GameDatabase:
                 game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
                 year INT NOT NULL,
                 directive_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """)
+
+        # Stock positions table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_positions (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                ticker VARCHAR(10) NOT NULL,
+                shares FLOAT NOT NULL,
+                avg_cost FLOAT NOT NULL,
+                current_price FLOAT NOT NULL,
+                dividend_per_share FLOAT DEFAULT 0,
+                drip_enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(game_id, year, ticker)
+            );
+        """)
+
+        # Stock prices history table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS stock_prices (
+                id SERIAL PRIMARY KEY,
+                ticker VARCHAR(10) NOT NULL,
+                year INT NOT NULL,
+                price FLOAT NOT NULL,
+                dividend_per_share FLOAT DEFAULT 0,
+                dividend_yield FLOAT DEFAULT 0,
+                market_sentiment VARCHAR(20),
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(ticker, year)
+            );
+        """)
+
+        # Chat messages table (for LLM conversations)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id SERIAL PRIMARY KEY,
+                game_id UUID NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+                year INT NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT NOW()
             );
         """)
@@ -335,6 +379,92 @@ class GameDatabase:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             "SELECT * FROM events WHERE game_id = %s AND year = %s ORDER BY created_at;",
+            (game_id, year),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in results]
+
+    # ===== STOCK POSITIONS =====
+
+    def save_stock_position(
+        self,
+        game_id: str,
+        year: int,
+        ticker: str,
+        shares: float,
+        avg_cost: float,
+        current_price: float,
+        dividend_per_share: float = 0,
+        drip_enabled: bool = True,
+    ):
+        """Save stock position."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO stock_positions (game_id, year, ticker, shares, avg_cost, current_price, dividend_per_share, drip_enabled)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (game_id, year, ticker) DO UPDATE SET
+                shares = EXCLUDED.shares,
+                avg_cost = EXCLUDED.avg_cost,
+                current_price = EXCLUDED.current_price,
+                dividend_per_share = EXCLUDED.dividend_per_share,
+                drip_enabled = EXCLUDED.drip_enabled;
+            """,
+            (game_id, year, ticker, shares, avg_cost, current_price, dividend_per_share, drip_enabled),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_stock_position(self, game_id: str, year: int, ticker: str) -> Optional[Dict]:
+        """Get stock position for a year."""
+        conn = self._get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT * FROM stock_positions WHERE game_id = %s AND year = %s AND ticker = %s;",
+            (game_id, year, ticker),
+        )
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return dict(result) if result else None
+
+    def get_all_stock_positions(self, game_id: str, year: int) -> List[Dict]:
+        """Get all stock positions for a year."""
+        conn = self._get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT * FROM stock_positions WHERE game_id = %s AND year = %s;",
+            (game_id, year),
+        )
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [dict(r) for r in results]
+
+    # ===== CHAT MESSAGES =====
+
+    def save_chat_message(self, game_id: str, year: int, role: str, content: str):
+        """Save chat message."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO chat_messages (game_id, year, role, content) VALUES (%s, %s, %s, %s);",
+            (game_id, year, role, content),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_chat_messages(self, game_id: str, year: int) -> List[Dict]:
+        """Get all chat messages for a year."""
+        conn = self._get_conn()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT role, content FROM chat_messages WHERE game_id = %s AND year = %s ORDER BY created_at;",
             (game_id, year),
         )
         results = cur.fetchall()
