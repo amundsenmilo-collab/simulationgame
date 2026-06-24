@@ -106,11 +106,12 @@ async def create_game(req: CreateGameRequest):
         "ebitda": 4_480_000.0,
         "ebitda_margin": 16.0,
         "net_income": 2_387_380.0,
-        "cash": 3_175_000.0,
+        "cash": 800_000.0,
         "debt": 4_620_000.0,
         "dscr": 1.93,
         "capex": 0.0,
         "dividend_paid": 0.0,
+        "personal_cash": 0.0,
     }
     db.save_financials(game_id, 0, baseline)
     
@@ -118,7 +119,6 @@ async def create_game(req: CreateGameRequest):
         "game_id": game_id,
         "player_name": req.player_name,
         "current_year": 0,
-        "personal_cash": 800000.0,
         "financial_summary": baseline,
         "timestamp": datetime.now().isoformat(),
     }
@@ -352,8 +352,8 @@ async def stock_action(req: StockActionRequest):
             drip_enabled=position_dict["drip_enabled"],
         )
     
-    # Use personal cash for stock transactions (separate from corporate cash)
-    personal_cash = db.get_personal_cash(game_id)
+    # Use personal cash from financials (stored in financials table)
+    personal_cash = financials.get("personal_cash", 0)
     message = ""
 
     if action == "buy":
@@ -374,10 +374,11 @@ async def stock_action(req: StockActionRequest):
             game_id, year, position.ticker, position.shares, position.avg_cost,
             position.current_price, position.dividend_per_share, position.drip_enabled
         )
-
-    # Update personal cash (not corporate cash)
-    db.update_personal_cash(game_id, personal_cash)
-
+    
+    # Update personal cash (corporate cash is untouched)
+    financials["personal_cash"] = personal_cash
+    db.save_financials(game_id, year, financials)
+    
     return {
         "game_id": game_id,
         "year": year,
@@ -426,8 +427,7 @@ async def get_year_state(game_id: str, year: int):
     directives = db.get_directives(game_id, year)
     events = db.get_events(game_id, year)
     stock_positions = db.get_all_stock_positions(game_id, year)
-    personal_cash = db.get_personal_cash(game_id)
-
+    
     return {
         "game_id": game_id,
         "year": year,
@@ -436,7 +436,6 @@ async def get_year_state(game_id: str, year: int):
         "directives": directives,
         "events": events,
         "stock_positions": stock_positions,
-        "personal_cash": personal_cash,
         "timestamp": datetime.now().isoformat(),
     }
 

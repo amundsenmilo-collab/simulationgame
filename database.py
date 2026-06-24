@@ -63,9 +63,15 @@ class GameDatabase:
                 dscr FLOAT NOT NULL,
                 capex FLOAT DEFAULT 0,
                 dividend_paid FLOAT DEFAULT 0,
+                personal_cash FLOAT DEFAULT 0,
                 created_at TIMESTAMP DEFAULT NOW(),
                 UNIQUE(game_id, year)
             );
+        """)
+
+        # Idempotent migration: add personal_cash to existing financials tables
+        cur.execute("""
+            ALTER TABLE financials ADD COLUMN IF NOT EXISTS personal_cash FLOAT DEFAULT 0;
         """)
 
         # Narratives table
@@ -234,8 +240,8 @@ class GameDatabase:
         cur.execute(
             """
             INSERT INTO financials 
-            (game_id, year, revenue, ebitda, ebitda_margin, net_income, cash, total_debt, dscr, capex, dividend_paid)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (game_id, year, revenue, ebitda, ebitda_margin, net_income, cash, total_debt, dscr, capex, dividend_paid, personal_cash)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (game_id, year) DO UPDATE SET
                 revenue = EXCLUDED.revenue,
                 ebitda = EXCLUDED.ebitda,
@@ -245,7 +251,8 @@ class GameDatabase:
                 total_debt = EXCLUDED.total_debt,
                 dscr = EXCLUDED.dscr,
                 capex = EXCLUDED.capex,
-                dividend_paid = EXCLUDED.dividend_paid;
+                dividend_paid = EXCLUDED.dividend_paid,
+                personal_cash = EXCLUDED.personal_cash;
             """,
             (
                 game_id,
@@ -259,6 +266,7 @@ class GameDatabase:
                 financials.get("dscr", 0),
                 financials.get("capex", 0),
                 financials.get("dividend_paid", 0),
+                financials.get("personal_cash", 0),
             ),
         )
         conn.commit()
