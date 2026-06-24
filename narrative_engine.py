@@ -3,6 +3,7 @@ Narrative engine for Asford Materials Hyperrealism Empire Builder.
 Generates year-end texture using DeepSeek API + fragment-based fallback.
 Tracks NPC trust scores and relationship state.
 Embeds game context for grounded, character-driven narratives.
+Efficient: passes last year's narrative text + prior year's end-of-year snapshot only.
 """
 import os
 import json
@@ -53,26 +54,65 @@ The EBITDA margin of 16% is real but brittle. It rests on three pillars:
 
 Adjusted for market wages, EBITDA margin is 14.4% — healthy but unexceptional. The extra 1.6 points are the lie your father told."""
 
+# Narrative format instruction
+NARRATIVE_FORMAT = """NARRATIVE FORMAT INSTRUCTION:
+
+You will narrate each year in a specific, grounded format. Here is an example for Year 5 (2030):
+
+January. The 2 new estimators start. Brian Holt, 31, formerly Forterra Atlanta. Marcus Webb, 27, UAB Civil Engineering, Connor's year. They train in Birmingham March 1–15, then rotate to Rockford March 16–31. High-end Airbnb in Sylacauga: $180/night × 14 nights × 2 rooms = $5,040. Per diem: $75/day × 14 × 2 = $2,100. They drive company F-150s. Brian hits a deer on US-280 March 18. The truck is repairable. The deer is not. $4,200 insurance deductible. Brian is fine. He does not mention the deer again.
+
+March 15. The lead estimator is promoted to Director of Estimating. Salary: $130,240. The $20,000 bonus is tied to Rockford's first-year DSCR. He does not know the target is 3.0x by Q4 2031. He knows his bonus is tied to "plant performance." He buys a bigger boat in October. He names it "The Underbid II."
+
+April 15. Rockford Phase 1 opens. The batch plant is operational. The first pour is a 48-inch RCP pipe for Jefferson County Utilities. Mike Castellano is on site at 5:30 AM. Connor is there at 5:45. The concrete is 4,000 psi, fly ash blend, same spec as Birmingham. The pipe cures 28 days. It passes QC. The second pour is May 3. By June, the plant produces 40 pipes a day, 12 manholes a week, 8 junction boxes. The metal fab shop is not yet operational — Wendell the GC is still installing the shear and press. It opens July 1.
+
+May. Three Rockford workers quit. Two are fired in June for showing up drunk. Darius Cole, the plant manager, hires replacements from Alexander City, Talladega, Sylacauga. The labor pool is thin. The quality is inconsistent. In July, a batch of 24-inch pipe fails slump test — too much water, not enough cement. $12,000 in scrap. Mike drives from Sylacauga (unit 3B) and spends 48 hours recalibrating the batch plant. He does not sleep. He fixes it. He says to Darius, "You call me before you call Connor. Always." Darius says, "Yes sir."
+
+July. The metal fab shop opens. The first ring and cover set is produced July 15. It is for a Birmingham DOT job, shipped from Rockford because the Birmingham fab shop is not yet built. The margin is negative — $18,000 in red ink before September. The "Proudly made in the USA by Asford Materials" stamp is applied. The paint is still wet when it ships. The stamp smudges. The DOT inspector does not notice.
+
+August. Patricia Holt visits Rockford. She wears hard boots and a Regions Bank polo. She walks the batch plant. She asks Darius about the July scrap loss. Darius tells her about Mike's 48-hour fix. She writes in her notebook. She asks Connor about the DSCR. He says, "1.57x this year. 2.5x next year. 3.2x the year after." She says, "You need 3.0x by Q4 2031. Not 2032." Connor says, "I know." She says, "Your personal guarantee is on file. Your lake house is on file. Your condo is on file. I hope you swim well." Connor does not swim well. He does not tell her.
+
+September. BBTW installs the vending machine. Rosa stocks it. Sandwiches from a Birmingham wholesaler ($3.50 cost, $6.50 sale), snacks from Sam's Club, detergent and dryer sheets from Dollar General. Revenue: $340/month. Cost of goods: $180. Net: $160/month. Rosa gets a $75/month stipend to stock it. She says, "I am not a store clerk." Connor gives her $100. She says, "Fine." The machine jams twice in August. Carl the handyman fixes it. He charges $40/hour. Connor pays him from BBTW. Derek from IT set up the SKU in Odoo: "VENDING-001." The revenue stream is tracked. It is $1,920/year. It is not material. It is tracked.
+
+October. The 2 engineers (hired Q2, deferred from 2029) begin writing specs. FEMA shelter designs. Wind foundation concepts. Prison module preliminary drawings. They have no orders. They have no permits. They have no customers. They have salaries: $130,000 each. Connor says, "Write it. Patent it. Wait." They write. They wait.
+
+November. Rockford produces its 10,000th pipe. Mike Castellano does not celebrate. He is 46. He lives in unit 3B of the Sylacauga apartment building. He has not taken a Saturday off since March 2029. He has $180,000 in savings. He still wants 5% of the company. Connor still has not answered. Harold Vance runs Birmingham. The plant is stable. The union is gone. The Odoo tablets show 94% uptime. The Director of Estimating wins a $4.2M DOT job in November — approach slabs for the I-59 widening. Margin: 11%. He does not get his $20,000 bonus. The DSCR is 1.57x. He buys a third boat anyway. He names it "The DSCR."
+
+December 31. The books close. No dividend from Asford Materials. The signal is sent: we are serious. The bank knows. Patricia Holt knows. The $938,186 cash is above the $500,000 minimum. The DSCR is 1.57x. The trajectory is 1.57x → 2.5x → 3.2x. If Rockford scales. If the specialty lines work. If the engineers write specs that someone buys. If the metal fab shop turns profitable. If Mike Castellano does not quit. If Connor Asford does not drown.
+
+Connor sits on the dock. It is 38 degrees. The water is black. The Boston Whaler is covered for winter. He has $340,000 in personal cash. He has a $9.5M company. He has a lake house with no mortgage. He has a mother who does not call. He has a sister who does not call. He has Mike Castellano, in unit 3B, in Sylacauga, running a plant that is not his, who wants 5%, who Connor will never give it to.
+
+He thinks about 2031. He thinks about the DSCR. He thinks about Patricia Holt, who hopes he swims well. He does not swim well. He does not tell her.
+
+KEY CHARACTERISTICS OF THIS FORMAT:
+- Specific dates and months (January, March 15, April 15, etc.)
+- Character names, ages, and details (Brian Holt, 31, formerly Forterra Atlanta)
+- Exact financial figures ($180/night, $5,040, $4,200 deductible)
+- Dialogue that reveals character motivation and stakes
+- Sensory details (38 degrees, black water, hard boots, wet paint)
+- Embedded financial reality (DSCR targets, margins, cash positions)
+- Personal stakes and emotional truth (Connor does not swim well, Mike wants 5%, mother does not call)
+- Specific locations (unit 3B in Sylacauga, the dock, the batch plant)
+- Specific machines and equipment (Boston Whaler, F-150s, batch plant mixer)
+- Consequences and cause-and-effect (Brian hits deer → $4,200 deductible, pipe fails → $12,000 scrap)
+- Tone: Cold, unsentimental, objective. No cheerleading. The world is indifferent.
+- Length: 3-5 paragraphs, not a list. Tell a story.
+
+APPLY THIS FORMAT TO THE YEAR YOU ARE NARRATING."""
+
 
 @dataclass
 class FinancialSnapshot:
     """Year-end financials."""
     year: int
     revenue: float
-    cogs_opex: float
     ebitda: float
-    depreciation: float
-    ebit: float
-    interest: float
-    taxable_income: float
-    tax: float
+    ebitda_margin: float
     net_income: float
     cash: float
     total_debt: float
     dscr: float
     dividend_paid: float
     capex: float
-    ebitda_margin: float
 
 
 @dataclass
@@ -116,56 +156,51 @@ class NarrativeEngine:
     Uses DeepSeek API for rich narratives, falls back to fragments if API fails.
     Tracks and updates NPC trust scores.
     Embeds game context for grounded, character-driven narratives.
+    EFFICIENT: Passes last year's narrative text + prior year's end-of-year snapshot only.
     """
 
     # Default trust scores for key NPCs
     DEFAULT_TRUST_SCORES = {
-        "mike_castellano": 75,      # Plant manager, loyal but aging
-        "patricia_holt": 60,        # Bank relationship manager, cautious
-        "mother": 80,               # Family, supportive
-        "sister": 70,               # Family, involved in business
-        "business_agent": 40,       # Union, adversarial
-        "harold_vance": 50,         # Competitor, neutral
-        "darius_cole": 45,          # Supplier, transactional
+        "mike_castellano": 75,
+        "patricia_holt": 60,
+        "mother": 80,
+        "sister": 70,
+        "business_agent": 40,
+        "harold_vance": 50,
+        "darius_cole": 45,
     }
 
     def __init__(self):
         self.api_key = DEEPSEEK_API_KEY
         self.trust_scores = self.DEFAULT_TRUST_SCORES.copy()
 
-    # ======================================================================
-    # Trust Score Management
-    # ======================================================================
-
     def update_trust_score(self, entity_name: str, delta: int, reason: str = "") -> int:
-        """
-        Update an NPC's trust score. Clamps to [0, 100].
-        Returns new score.
-        """
         if entity_name not in self.trust_scores:
-            self.trust_scores[entity_name] = 50  # Default neutral
-
+            self.trust_scores[entity_name] = 50
         old_score = self.trust_scores[entity_name]
         new_score = max(0, min(100, old_score + delta))
         self.trust_scores[entity_name] = new_score
-
-        # Log for debugging
         if reason:
             print(f"[TRUST] {entity_name}: {old_score} → {new_score} ({reason})")
-
         return new_score
 
     def get_trust_score(self, entity_name: str) -> int:
-        """Get current trust score for an NPC."""
         return self.trust_scores.get(entity_name, 50)
 
     def get_all_trust_scores(self) -> Dict[str, int]:
-        """Return all trust scores as dict."""
         return self.trust_scores.copy()
 
-    # ======================================================================
-    # Prompt Construction
-    # ======================================================================
+    def _trust_label(self, score: int) -> str:
+        if score >= 80:
+            return "loyal"
+        elif score >= 60:
+            return "cooperative"
+        elif score >= 40:
+            return "neutral"
+        elif score >= 20:
+            return "wary"
+        else:
+            return "hostile"
 
     def _build_deepseek_prompt(
         self,
@@ -176,28 +211,25 @@ class NarrativeEngine:
         relationships: List[RelationshipState],
         year_type: str,
         directives: List[str],
+        prior_fin: Optional[FinancialSnapshot] = None,
+        prior_narrative: Optional[str] = None,
     ) -> str:
-        """Build a rich, grounded prompt for DeepSeek with full game context."""
+        """Build efficient prompt: game context + last year's narrative + prior year snapshot + current year data."""
 
-        # Format relationships for context
         rel_context = ""
         if relationships:
             rel_lines = []
             for rel in relationships:
                 trust_label = self._trust_label(rel.trust_score)
-                rel_lines.append(
-                    f"- {rel.entity_name}: trust {rel.trust_score}/100 ({trust_label})"
-                )
+                rel_lines.append(f"- {rel.entity_name}: trust {rel.trust_score}/100 ({trust_label})")
             rel_context = "\n".join(rel_lines)
         else:
-            # Use default trust scores if no relationships provided
             rel_lines = []
             for name, score in self.trust_scores.items():
                 trust_label = self._trust_label(score)
                 rel_lines.append(f"- {name}: trust {score}/100 ({trust_label})")
             rel_context = "\n".join(rel_lines)
 
-        # Format events for context
         event_context = ""
         if events:
             event_lines = []
@@ -207,13 +239,31 @@ class NarrativeEngine:
         else:
             event_context = "No major events recorded."
 
-        # Format directives
         directives_str = "; ".join(directives) if directives else "no specific directives"
-
-        # Covenant status
         covenant_status = "COVENANT BREACH" if fin.dscr < 3.0 else "covenants intact"
 
+        # Prior year context (efficient: only end-of-year snapshot)
+        prior_context = ""
+        if prior_fin:
+            prior_context = f"""LAST YEAR ({prior_fin.year}) — END OF YEAR:
+Revenue: ${prior_fin.revenue:,.0f}
+EBITDA: ${prior_fin.ebitda:,.0f} ({prior_fin.ebitda_margin:.1f}% margin)
+Net Income: ${prior_fin.net_income:,.0f}
+Cash: ${prior_fin.cash:,.0f}
+Debt: ${prior_fin.total_debt:,.0f}
+DSCR: {prior_fin.dscr:.2f}x
+Dividend: ${prior_fin.dividend_paid:,.0f}
+
+LAST YEAR'S NARRATIVE:
+{prior_narrative if prior_narrative else "No prior narrative available."}
+
+"""
+
         prompt = f"""{GAME_CONTEXT}
+
+{NARRATIVE_FORMAT}
+
+{prior_context}
 
 YEAR {year} RESULTS:
 Year type: {year_type}
@@ -236,41 +286,26 @@ EVENTS THIS YEAR:
 {event_context}
 
 TASK:
-Write 2-3 paragraphs of year-end narrative texture for Connor Asford in {year}.
-- Ground in specific sensory detail (smells, sounds, temperatures, textures).
-- Show character motivation through dialogue and action, not explanation.
-- Embed financial reality (margins, covenants, cash flow) into the story.
-- Reflect the year type ({year_type}) in tone and pacing.
-- Acknowledge relationship dynamics and trust levels.
-- Be objective and unsentimental. No cheerleading. The world is indifferent.
-- Reference specific people (Mike, Patricia Holt, the workers), places (the plant, the form shop, the batch plant), and machines (the crane, the mixer drum, the kiln).
-- Do NOT list or summarize. Tell a story.
-- Remember: Connor is 25, quiet, observant, doesn't bluff. He respects the people who built the company but knows things need to change.
-- Remember: The margin is brittle. It rests on labor compression, deferred maintenance, and Mike's loyalty. Connor knows this.
+Write the year {year} narrative in the format shown above. Reference last year's narrative for continuity. Apply the key characteristics:
+- Specific dates and months
+- Character names, ages, and details
+- Exact financial figures
+- Dialogue that reveals character motivation
+- Sensory details (temperatures, textures, sounds, smells)
+- Embedded financial reality (DSCR, margins, cash)
+- Personal stakes and emotional truth
+- Specific locations and machines
+- Consequences and cause-and-effect
+- Cold, unsentimental, objective tone
+- 3-5 paragraphs, not a list
+
+Remember: Connor is 25, quiet, observant, doesn't bluff. The margin is brittle. Mike Castellano is the linchpin. Patricia Holt watches the DSCR. The world is indifferent to Connor's youth or good intentions.
 
 Write the narrative now:"""
 
         return prompt
 
-    def _trust_label(self, score: int) -> str:
-        """Convert trust score to narrative label."""
-        if score >= 80:
-            return "loyal"
-        elif score >= 60:
-            return "cooperative"
-        elif score >= 40:
-            return "neutral"
-        elif score >= 20:
-            return "wary"
-        else:
-            return "hostile"
-
-    # ======================================================================
-    # DeepSeek API Call
-    # ======================================================================
-
     def _call_deepseek(self, prompt: str) -> Optional[str]:
-        """Call DeepSeek API. Returns narrative or None on failure."""
         if not self.api_key:
             print("[DEEPSEEK] No API key configured")
             return None
@@ -284,7 +319,7 @@ Write the narrative now:"""
                 "model": DEEPSEEK_MODEL,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.7,
-                "max_tokens": 800,
+                "max_tokens": 1200,
             }
             response = requests.post(
                 DEEPSEEK_URL,
@@ -297,9 +332,6 @@ Write the narrative now:"""
 
             if data.get("choices") and len(data["choices"]) > 0:
                 narrative = data["choices"][0]["message"]["content"].strip()
-                # Trim at first double-newline if too long
-                if "\n\n\n" in narrative:
-                    narrative = narrative.split("\n\n\n")[0].strip()
                 return narrative
 
         except requests.exceptions.Timeout:
@@ -313,214 +345,66 @@ Write the narrative now:"""
 
         return None
 
-    # ======================================================================
-    # Fragment-Based Fallback
-    # ======================================================================
-
-    def _select_texture_fragments(
-        self,
-        year_type: str,
-        events: List[EventMemory],
-        relationships: List[RelationshipState],
-    ) -> Dict:
-        """Select narrative fragments based on year type and events."""
-
-        fragments = {"openings": [], "middles": [], "closes": [], "sensory": []}
-
-        # Year-type openings
-        year_openings = {
-            "boom": [
-                "The year started with a backlog Connor had not seen since his grandfather's era.",
-                "January brought three major DOT awards in the same week.",
-                "The production floor ran two shifts for the first time.",
-            ],
-            "crisis": [
-                "Connor knew by February that this would be a hard year.",
-                "The January books showed cash bleeding faster than he had modeled.",
-                "Patricia Holt's Q1 call came on a Tuesday, earlier than scheduled.",
-            ],
-            "investment": [
-                "The ground broke in March, three weeks behind schedule.",
-                "Connor spent more nights in Sylacauga than in Hoover.",
-                "Mike Castellano moved his tools to the new plant in April.",
-            ],
-            "extraction": [
-                "Connor took the dividend in January, before the year revealed itself.",
-                "The board minutes were one page. The vote was 1-0.",
-                "Patricia Holt made a note in the file. She did not call.",
-            ],
-            "ordinary": [
-                "The year began with ice on the batch plant roof.",
-                "January was cold and slow, as January always is.",
-                "Connor drove to the plant on New Year's Day. Mike was already there.",
-            ],
-        }
-        fragments["openings"].extend(
-            year_openings.get(year_type, year_openings["ordinary"])
-        )
-
-        # Event-based middles
-        for event in events:
-            if event.event_type == "equipment" and event.financial_impact > 10000:
-                fragments["middles"].append(
-                    f"The {event.description.lower()}. Mike fixed it in {self._rng_hours()} hours."
-                )
-            elif event.event_type == "personnel" and "mike_castellano" in event.entities_involved:
-                fragments["middles"].append(
-                    "Mike asked about the equity again. Connor said later. Mike said nothing."
-                )
-            elif event.event_type == "union":
-                fragments["middles"].append(
-                    f"The union business agent filed in {self._rng_month()}. The hearing was in {self._rng_month()}."
-                )
-            elif event.event_type == "market" and event.financial_impact > 100000:
-                fragments["middles"].append(
-                    "Forterra underbid them on the bridge job. The margin was thin anyway."
-                )
-            elif event.event_type == "regulatory" and "osha" in event.entities_involved:
-                fragments["middles"].append(
-                    f"OSHA arrived {self._rng_day()}. The fine was ${event.financial_impact:,.0f}."
-                )
-
-        # Relationship-based closes
-        for rel in relationships:
-            if rel.entity_name == "mike_castellano" and rel.trust_score < 60:
-                fragments["closes"].append(
-                    "Mike took his vacation in December. He had not taken vacation in three years."
-                )
-            elif rel.entity_name == "patricia_holt" and rel.promises_broken > 0:
-                fragments["closes"].append(
-                    "Patricia Holt's year-end note was one sentence: 'See me in January.'"
-                )
-            elif rel.entity_name == "mother" and rel.last_interaction:
-                fragments["closes"].append(
-                    "His mother called in December. She did not ask for money. She asked about the lake house."
-                )
-
-        # Default closes if none triggered
-        if not fragments["closes"]:
-            fragments["closes"].extend(
-                [
-                    "The books closed December 31. The accountant worked until 9 PM.",
-                    "Connor signed the year-end statements at 11 PM, alone in the office.",
-                    "The CHOMEX break room was empty when he walked through. The Sharpie was still there.",
-                ]
-            )
-
-        # Sensory details
-        fragments["sensory"] = [
-            "The crane groaned at 6 AM when the temperature dropped below freezing.",
-            "The batch plant smelled of wet cement and diesel.",
-            "Mike's coffee cup left a ring on every surface he touched.",
-            "The fluorescent lights in the form shop flickered but never died.",
-            "Connor's F-150 needed new shocks. He felt every pothole on I-65.",
-        ]
-
-        return fragments
-
-    def _assemble_narrative_fallback(
+    def narrate_year(
         self,
         year: int,
         fin: FinancialSnapshot,
-        company: Optional[CompanyState],
-        fragments: Dict,
-        year_type: str,
+        company: Optional[CompanyState] = None,
+        events: Optional[List[EventMemory]] = None,
+        relationships: Optional[List[RelationshipState]] = None,
+        prior_fin: Optional[FinancialSnapshot] = None,
+        prior_narrative: Optional[str] = None,
+        directives: Optional[List[str]] = None,
     ) -> str:
-        """Assemble fragments into coherent year-end texture (fallback)."""
+        """
+        Main entry point. Generate year-end narrative.
 
-        # Opening
-        opening = random.choice(fragments["openings"])
+        Args:
+            year: Game year
+            fin: FinancialSnapshot for the year (end-of-year only)
+            company: CompanyState (optional)
+            events: List of EventMemory (optional)
+            relationships: List of RelationshipState (optional)
+            prior_fin: Prior year's END-OF-YEAR FinancialSnapshot only (efficient)
+            prior_narrative: Last year's narrative text (for continuity)
+            directives: List of player directives (optional)
 
-        # Middle (events + financial pressure)
-        middle_parts = []
-        if fragments["middles"]:
-            middle_parts.append(random.choice(fragments["middles"]))
+        Returns:
+            3-5 paragraph year-end narrative texture in the specified format.
+        """
 
-        # Financial texture (embedded in narrative, not listed)
-        if fin.ebitda_margin < 5:
-            middle_parts.append(
-                f"The margin was {fin.ebitda_margin:.1f} percent. "
-                f"Connor did not need Kevin Jock to tell him what that meant."
-            )
-        elif fin.ebitda_margin > 15:
-            middle_parts.append(
-                f"The margin was {fin.ebitda_margin:.1f} percent. "
-                f"Mike said it was the best year since Barry Jr."
-            )
+        events = events or []
+        relationships = relationships or []
+        directives = directives or []
 
-        if fin.dscr < 2.0:
-            middle_parts.append(
-                f"The bank's covenant was {fin.dscr:.2f}x. Patricia Holt would notice."
-            )
+        year_type = self._classify_year(fin, prior_fin)
 
-        if fin.capex > 1000000:
-            middle_parts.append(
-                f"${fin.capex:,.0f} left the account for dirt and concrete. "
-                f"Connor watched the wires clear."
-            )
+        prompt = self._build_deepseek_prompt(
+            year, fin, company, events, relationships, year_type, directives, prior_fin, prior_narrative
+        )
+        narrative = self._call_deepseek(prompt)
 
-        if fin.dividend_paid > 0:
-            middle_parts.append(
-                f"He took ${fin.dividend_paid:,.0f} in December. The board minutes were one page."
+        if not narrative:
+            print(f"[NARRATIVE] DeepSeek failed, using fragment fallback for year {year}")
+            fragments = self._select_texture_fragments(year_type, events, relationships)
+            narrative = self._assemble_narrative_fallback(
+                year, fin, company, fragments, year_type
             )
 
-        # Sensory detail
-        sensory = random.choice(fragments["sensory"])
-
-        # Close
-        close = random.choice(fragments["closes"])
-
-        # Assemble
-        paragraphs = []
-
-        # Paragraph 1: Opening + context
-        p1 = f"{opening} {sensory}"
-        paragraphs.append(p1)
-
-        # Paragraph 2: Events + financial pressure
-        if middle_parts:
-            p2 = " ".join(middle_parts[:2])  # Max 2 middle fragments
-            paragraphs.append(p2)
-
-        # Paragraph 3: Close + forward look
-        if fin.dscr < 1.5:
-            p3 = f"{close} The next year would be harder."
-        elif fin.dscr > 3.0 and fin.cash > 1000000:
-            p3 = f"{close} For the first time in years, the balance sheet felt like breathing room."
-        else:
-            p3 = close
-
-        paragraphs.append(p3)
-
-        return "\n\n".join(paragraphs)
-
-    # ======================================================================
-    # Year Classification
-    # ======================================================================
+        return narrative
 
     def _classify_year(
         self, fin: FinancialSnapshot, prior_fin: Optional[FinancialSnapshot]
     ) -> str:
-        """Classify the year's character for narrative tone."""
-
         if prior_fin:
             revenue_change = (
                 ((fin.revenue - prior_fin.revenue) / prior_fin.revenue * 100)
                 if prior_fin.revenue > 0
                 else 0
             )
-            ebitda_change = (
-                ((fin.ebitda - prior_fin.ebitda) / prior_fin.ebitda * 100)
-                if prior_fin.ebitda > 0
-                else 0
-            )
-            cash_change = fin.cash - prior_fin.cash
         else:
             revenue_change = 0
-            ebitda_change = 0
-            cash_change = 0
 
-        # Year archetypes
         if fin.ebitda_margin >= 15 and revenue_change > 5:
             return "boom"
         elif fin.ebitda_margin >= 10 and fin.dscr >= 3.0:
@@ -538,85 +422,67 @@ Write the narrative now:"""
         else:
             return "ordinary"
 
-    # ======================================================================
-    # Random Narrative Helpers
-    # ======================================================================
-
-    def _rng_hours(self) -> str:
-        """Random plausible hour count for narrative."""
-        return str(random.choice([8, 12, 24, 36, 48]))
-
-    def _rng_month(self) -> str:
-        """Random month for narrative."""
-        return random.choice(
-            ["February", "March", "April", "May", "September", "October"]
+    def _select_texture_fragments(
+        self,
+        year_type: str,
+        events: List[EventMemory],
+        relationships: List[RelationshipState],
+    ) -> Dict:
+        fragments = {"openings": [], "middles": [], "closes": [], "sensory": []}
+        year_openings = {
+            "boom": [
+                "The year started with a backlog Connor had not seen since his grandfather's era.",
+                "January brought three major DOT awards in the same week.",
+                "The production floor ran two shifts for the first time.",
+            ],
+            "crisis": [
+                "Connor knew by February that this would be a hard year.",
+                "The January books showed cash bleeding faster than he had modeled.",
+                "Patricia Holt's Q1 call came on a Tuesday, earlier than scheduled.",
+            ],
+            "ordinary": [
+                "The year began with ice on the batch plant roof.",
+                "January was cold and slow, as January always is.",
+                "Connor drove to the plant on New Year's Day. Mike was already there.",
+            ],
+        }
+        fragments["openings"].extend(
+            year_openings.get(year_type, year_openings["ordinary"])
         )
+        fragments["sensory"] = [
+            "The crane groaned at 6 AM when the temperature dropped below freezing.",
+            "The batch plant smelled of wet cement and diesel.",
+            "Mike's coffee cup left a ring on every surface he touched.",
+            "The fluorescent lights in the form shop flickered but never died.",
+            "Connor's F-150 needed new shocks. He felt every pothole on I-65.",
+        ]
+        fragments["closes"].extend([
+            "The books closed December 31. The accountant worked until 9 PM.",
+            "Connor signed the year-end statements at 11 PM, alone in the office.",
+            "The CHOMEX break room was empty when he walked through. The Sharpie was still there.",
+        ])
+        return fragments
 
-    def _rng_day(self) -> str:
-        """Random day descriptor for narrative."""
-        return random.choice(
-            ["Monday morning", "a Thursday", "the last Friday of the month", "a rainy Tuesday"]
-        )
-
-    # ======================================================================
-    # Main Entry Point
-    # ======================================================================
-
-    def narrate_year(
+    def _assemble_narrative_fallback(
         self,
         year: int,
         fin: FinancialSnapshot,
-        company: Optional[CompanyState] = None,
-        events: Optional[List[EventMemory]] = None,
-        relationships: Optional[List[RelationshipState]] = None,
-        prior_fin: Optional[FinancialSnapshot] = None,
-        directives: Optional[List[str]] = None,
+        company: Optional[CompanyState],
+        fragments: Dict,
+        year_type: str,
     ) -> str:
-        """
-        Main entry point. Generate year-end narrative.
-
-        Args:
-            year: Game year
-            fin: FinancialSnapshot for the year
-            company: CompanyState (optional)
-            events: List of EventMemory (optional)
-            relationships: List of RelationshipState (optional)
-            prior_fin: Prior year's FinancialSnapshot for comparison (optional)
-            directives: List of player directives (optional)
-
-        Returns:
-            2-3 paragraph year-end narrative texture.
-        """
-
-        events = events or []
-        relationships = relationships or []
-        directives = directives or []
-
-        # Classify year
-        year_type = self._classify_year(fin, prior_fin)
-
-        # Try DeepSeek first
-        prompt = self._build_deepseek_prompt(
-            year, fin, company, events, relationships, year_type, directives
-        )
-        narrative = self._call_deepseek(prompt)
-
-        # Fall back to fragments if DeepSeek fails
-        if not narrative:
-            print(f"[NARRATIVE] DeepSeek failed, using fragment fallback for year {year}")
-            fragments = self._select_texture_fragments(year_type, events, relationships)
-            narrative = self._assemble_narrative_fallback(
-                year, fin, company, fragments, year_type
-            )
-
-        return narrative
-
-    # ======================================================================
-    # Serialization (for API responses)
-    # ======================================================================
+        opening = random.choice(fragments["openings"])
+        sensory = random.choice(fragments["sensory"])
+        close = random.choice(fragments["closes"])
+        p1 = f"{opening} {sensory}"
+        p2 = f"The margin was {fin.ebitda_margin:.1f} percent. The DSCR was {fin.dscr:.2f}x."
+        if fin.dscr < 1.5:
+            p3 = f"{close} The next year would be harder."
+        else:
+            p3 = close
+        return "\n\n".join([p1, p2, p3])
 
     def to_dict(self) -> Dict:
-        """Serialize engine state to dict."""
         return {
             "trust_scores": self.trust_scores,
             "timestamp": datetime.now().isoformat(),

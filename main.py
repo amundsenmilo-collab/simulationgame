@@ -39,6 +39,8 @@ class DecisionRequest(BaseModel):
 class FastForwardRequest(BaseModel):
     year: int
     directives: List[str] = []
+    prior_narrative: Optional[str] = None  # Last year's narrative for continuity
+    prior_year_financials: Optional[Dict] = None  # Prior year's end-of-year snapshot only
 
 
 class SearchRequest(BaseModel):
@@ -79,8 +81,10 @@ async def fast_forward(req: FastForwardRequest):
     Fast-forward one year: run the financial model then generate narrative.
 
     Request body:
-        year       – target game year (e.g. 2027)
-        directives – list of player directive strings
+        year                    – target game year (e.g. 2027)
+        directives              – list of player directive strings
+        prior_narrative         – last year's narrative text (for continuity)
+        prior_year_financials   – prior year's end-of-year snapshot only (efficient)
 
     Response:
         year, directives, financial_summary, narrative, trust_scores, timestamp
@@ -103,24 +107,18 @@ async def fast_forward(req: FastForwardRequest):
         # 1. Run financial model
         financial_summary = FinanceEngine().fast_forward_year(req.year, req.directives)
 
-        # 2. Convert financial summary to FinancialSnapshot
+        # 2. Convert financial summary to FinancialSnapshot (current year)
         fin = FinancialSnapshot(
             year=req.year,
             revenue=financial_summary.get("revenue", 0),
-            cogs_opex=financial_summary.get("cogs_opex", 0),
             ebitda=financial_summary.get("ebitda", 0),
-            depreciation=financial_summary.get("depreciation", 0),
-            ebit=financial_summary.get("ebit", 0),
-            interest=financial_summary.get("interest", 0),
-            taxable_income=financial_summary.get("taxable_income", 0),
-            tax=financial_summary.get("tax", 0),
+            ebitda_margin=financial_summary.get("ebitda_margin", 0),
             net_income=financial_summary.get("net_income", 0),
             cash=financial_summary.get("cash", 0),
             total_debt=financial_summary.get("debt", 0),
             dscr=financial_summary.get("dscr", 0),
             dividend_paid=financial_summary.get("dividend_paid", 0),
             capex=financial_summary.get("capex", 0),
-            ebitda_margin=financial_summary.get("ebitda_margin", 0),
         )
 
         # 3. Create company state
@@ -135,15 +133,32 @@ async def fast_forward(req: FastForwardRequest):
             founded_year=1978,
         )
 
-        # 4. Generate narrative with directives
+        # 4. Convert prior year financials if provided (efficient: end-of-year snapshot only)
+        prior_fin = None
+        if req.prior_year_financials:
+            prior_fin = FinancialSnapshot(
+                year=req.year - 1,
+                revenue=req.prior_year_financials.get("revenue", 0),
+                ebitda=req.prior_year_financials.get("ebitda", 0),
+                ebitda_margin=req.prior_year_financials.get("ebitda_margin", 0),
+                net_income=req.prior_year_financials.get("net_income", 0),
+                cash=req.prior_year_financials.get("cash", 0),
+                total_debt=req.prior_year_financials.get("debt", 0),
+                dscr=req.prior_year_financials.get("dscr", 0),
+                dividend_paid=req.prior_year_financials.get("dividend_paid", 0),
+                capex=req.prior_year_financials.get("capex", 0),
+            )
+
+        # 5. Generate narrative with prior narrative and prior year snapshot
         narrative = narrative_engine.narrate_year(
             year=req.year,
             fin=fin,
             company=company,
             events=[],  # Can be populated from database if needed
             relationships=[],  # Can be populated from database if needed
-            prior_fin=None,  # Can be populated from prior year if needed
-            directives=req.directives,  # Pass player directives to narrative
+            prior_fin=prior_fin,  # Prior year's end-of-year snapshot only
+            prior_narrative=req.prior_narrative,  # Last year's narrative for continuity
+            directives=req.directives,
         )
 
     except Exception as e:
