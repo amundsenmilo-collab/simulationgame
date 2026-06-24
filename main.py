@@ -1,8 +1,28 @@
+"""
+Asford Materials Hyperrealism Empire Builder
+Backend API for business simulation game
+
+ARCHITECTURE:
+1. Python Finance Engine - Pure math, deterministic
+2. LLM Game Master - Narrative only, minimal context
+3. PostgreSQL - State persistence (handles 15+ years)
+
+Flow:
+- User enters directive
+- Python runs FinanceEngine (arithmetic)
+- Backend queries PostgreSQL for prior narrative
+- Backend calls DeepSeek with: current financials + prior narrative only
+- DeepSeek generates narrative
+- Backend saves to PostgreSQL
+- Frontend displays results
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
+import os
 
 # Import engines
 from textfile_1 import FinanceEngine
@@ -19,12 +39,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database and engines
+# Initialize
 db = GameDatabase()
 db.init_schema()
 narrative_engine = NarrativeEngine()
 stock_engine = StockEngine()
+finance_engine = FinanceEngine()
 
+
+# ===== REQUEST MODELS =====
 
 class CreateGameRequest(BaseModel):
     player_name: str = "Connor Asford"
@@ -50,12 +73,22 @@ class StockActionRequest(BaseModel):
     shares: Optional[float] = None
 
 
+# ===== ENDPOINTS =====
+
 @app.get("/")
 async def root():
     return {
         "status": "ok",
         "app": "Asford Materials Hyperrealism Engine",
-        "message": "Use POST /game to create a new game, then POST /fastforward to advance years",
+        "endpoints": {
+            "POST /game": "Create new game session",
+            "POST /fastforward": "Advance one year (run finance model + generate narrative)",
+            "POST /chat": "Chat with advisor between moves",
+            "POST /stock/price": "Get stock price for ticker",
+            "POST /stock/action": "Buy/sell/toggle DRIP",
+            "GET /game/{game_id}": "Get full game state",
+            "GET /game/{game_id}/year/{year}": "Get specific year state",
+        }
     }
 
 
@@ -63,12 +96,12 @@ async def root():
 async def create_game(req: CreateGameRequest):
     """
     Create a new game session.
-    Returns game_id to use for all subsequent requests.
+    Initializes year 0 with baseline financials.
     """
     game_id = db.create_game(req.player_name)
     
-    # Initialize year 0 financials (baseline)
-    baseline_financials = {
+    # Year 0 baseline
+    baseline = {
         "revenue": 28_000_000.0,
         "ebitda": 4_480_000.0,
         "ebitda_margin": 16.0,
@@ -76,15 +109,16 @@ async def create_game(req: CreateGameRequest):
         "cash": 3_175_000.0,
         "debt": 4_620_000.0,
         "dscr": 1.93,
+        "capex": 0.0,
+        "dividend_paid": 0.0,
     }
-    db.save_financials(game_id, 0, baseline_financials)
+    db.save_financials(game_id, 0, baseline)
     
     return {
         "game_id": game_id,
         "player_name": req.player_name,
         "current_year": 0,
-        "financial_summary": baseline_financials,
-        "message": "Game created. Use POST /fastforward to advance to year 1.",
+        "financial_summary": baseline,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -92,7 +126,15 @@ async def create_game(req: CreateGameRequest):
 @app.post("/fastforward")
 async def fast_forward(req: FastForwardRequest):
     """
-    Fast-forward one year: run financial model, generate narrative, save to database.
+    Fast-forward one year.
+    
+    PROCESS:
+    1. Run FinanceEngine (pure math, deterministic)
+    2. Query PostgreSQL for prior narrative
+    3. Call DeepSeek with: current financials + prior narrative only
+    4. Save results to PostgreSQL
+    
+    This keeps DeepSeek token-efficient: ~500 tokens per year, regardless of game length.
     """
     game_id = req.game_id
     year = req.year
@@ -107,18 +149,18 @@ async def fast_forward(req: FastForwardRequest):
     for directive in directives:
         db.save_directive(game_id, year, directive)
     
-    # Run financial model
-    financial_summary = FinanceEngine().fast_forward_year(year, directives)
+    # STEP 1: Run FinanceEngine (pure math)
+    financial_summary = finance_engine.fast_forward_year(year, directives)
     
     # Save financials
     db.save_financials(game_id, year, financial_summary)
     
-    # Get prior year narrative for continuity
+    # STEP 2: Get prior narrative from PostgreSQL (for continuity)
     prior_narrative = None
     if year > 0:
         prior_narrative = db.get_narrative(game_id, year - 1)
     
-    # Generate narrative (minimal context: only current financials + prior narrative)
+    # STEP 3: Call DeepSeek with minimal context
     fin = FinancialSnapshot(
         year=year,
         revenue=financial_summary["revenue"],
@@ -137,7 +179,7 @@ async def fast_forward(req: FastForwardRequest):
         directives=directives,
     )
     
-    # Save narrative
+    # STEP 4: Save narrative to PostgreSQL
     db.save_narrative(game_id, year, narrative)
     
     # Update game year
@@ -156,14 +198,13 @@ async def fast_forward(req: FastForwardRequest):
 @app.post("/chat")
 async def chat(req: ChatRequest):
     """
-    Chat with LLM between moves.
-    Maintains conversation history in database.
+    Chat with advisor between moves.
+    Maintains conversation history in PostgreSQL.
     """
     game_id = req.game_id
     year = req.year
     user_message = req.message
     
-    # Verify game exists
     game = db.get_game(game_id)
     if not game:
         return {"error": f"Game {game_id} not found"}, 404
@@ -171,14 +212,16 @@ async def chat(req: ChatRequest):
     # Save user message
     db.save_chat_message(game_id, year, "user", user_message)
     
-    # Get conversation history
+    # Get conversation history (last 10 messages for context)
     history = db.get_chat_messages(game_id, year)
     
-    # Get current financials for context
+    # Get current financials
     financials = db.get_financials(game_id, year)
+    if not financials:
+        return {"error": f"No financials for year {year}"}, 404
     
-    # Build prompt with game context
-    prompt = f"""You are Connor Asford's advisor in a business simulation game.
+    # Build prompt
+    prompt = f"""You are Connor Asford's business advisor in a simulation game.
 
 CURRENT YEAR: {year}
 COMPANY: Asford Materials, Inc.
@@ -190,9 +233,9 @@ CURRENT FINANCIALS:
 - Debt: ${financials.get('debt', 0):,.0f}
 - DSCR: {financials.get('dscr', 0):.2f}x
 
-CONVERSATION HISTORY:
+RECENT CONVERSATION:
 """
-    for msg in history[-10:]:  # Last 10 messages for context
+    for msg in history[-10:]:
         prompt += f"{msg['role'].upper()}: {msg['content']}\n"
     
     prompt += f"\nUSER: {user_message}\n\nADVISOR: "
@@ -201,7 +244,7 @@ CONVERSATION HISTORY:
     try:
         import requests
         headers = {
-            "Authorization": f"Bearer {app.state.deepseek_key}",
+            "Authorization": f"Bearer {os.getenv('DEEPSEEK_API_KEY')}",
             "Content-Type": "application/json",
         }
         payload = {
@@ -222,7 +265,7 @@ CONVERSATION HISTORY:
         if data.get("choices") and len(data["choices"]) > 0:
             assistant_message = data["choices"][0]["message"]["content"].strip()
         else:
-            assistant_message = "I'm unable to respond right now. Try again later."
+            assistant_message = "I'm unable to respond right now."
     except Exception as e:
         assistant_message = f"Error: {str(e)}"
     
@@ -241,8 +284,8 @@ CONVERSATION HISTORY:
 @app.post("/stock/price")
 async def get_stock_price(game_id: str, year: int, ticker: str = "ASFD"):
     """
-    Get current stock price for a ticker.
-    Uses LLM to determine price based on company financials.
+    Get current stock price.
+    LLM determines price based on company financials.
     """
     game = db.get_game(game_id)
     if not game:
@@ -252,7 +295,7 @@ async def get_stock_price(game_id: str, year: int, ticker: str = "ASFD"):
     if not financials:
         return {"error": f"No financials for year {year}"}, 404
     
-    # Determine stock price using LLM
+    # LLM determines stock price
     stock_price = stock_engine._determine_stock_price(
         ticker=ticker,
         year=year,
@@ -323,14 +366,14 @@ async def stock_action(req: StockActionRequest):
         else:
             message = f"No position in {ticker}"
     
-    # Save updated position
+    # Save position
     if position and position.shares > 0:
         db.save_stock_position(
             game_id, year, position.ticker, position.shares, position.avg_cost,
             position.current_price, position.dividend_per_share, position.drip_enabled
         )
     
-    # Update cash in financials
+    # Update cash
     financials["cash"] = cash
     db.save_financials(game_id, year, financials)
     
@@ -354,7 +397,7 @@ async def stock_action(req: StockActionRequest):
 
 @app.get("/game/{game_id}")
 async def get_game_state(game_id: str):
-    """Get current game state and all financials."""
+    """Get full game state."""
     game = db.get_game(game_id)
     if not game:
         return {"error": f"Game {game_id} not found"}, 404
