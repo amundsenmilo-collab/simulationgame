@@ -317,6 +317,7 @@ async def get_stock_price(game_id: str, year: int, ticker: str = "ASFD"):
 async def stock_action(req: StockActionRequest):
     """
     Buy, sell, or toggle DRIP for a stock.
+    IMPORTANT: Stocks can ONLY be purchased with personal cash, not corporate cash.
     """
     game_id = req.game_id
     year = req.year
@@ -352,7 +353,7 @@ async def stock_action(req: StockActionRequest):
             drip_enabled=position_dict["drip_enabled"],
         )
     
-    # Use personal cash from financials (stored in financials table)
+    # Use personal cash only (stocks cannot be bought with corporate cash)
     personal_cash = financials.get("personal_cash", 0)
     message = ""
 
@@ -375,7 +376,7 @@ async def stock_action(req: StockActionRequest):
             position.current_price, position.dividend_per_share, position.drip_enabled
         )
     
-    # Update personal cash (corporate cash is untouched)
+    # Update personal cash only (corporate cash is untouched)
     financials["personal_cash"] = personal_cash
     db.save_financials(game_id, year, financials)
     
@@ -443,4 +444,3 @@ async def get_year_state(game_id: str, year: int):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
