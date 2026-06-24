@@ -4,6 +4,17 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
 from duckduckgo_search import DDGS
+import sys
+import os
+
+# Import local modules
+sys.path.insert(0, os.path.dirname(__file__))
+from init_db import init_database
+from textfile_1 import FinanceEngine
+from textfile_2 import NarrativeEngine
+
+# Initialize database on startup
+init_database()
 
 app = FastAPI(title="Asford Materials Hyperrealism Engine")
 
@@ -63,17 +74,57 @@ async def process_decision(req: DecisionRequest):
 @app.post("/fastforward")
 async def fast_forward(req: FastForwardRequest):
     """
-    Fast-forward multiple years and return a year-by-year summary.
+    Fast-forward one year: run financial model + LLM narrative generation.
     """
-    results = [
-        {
-            "year": year,
-            "directives": req.directives_by_year.get(year, []),
-        }
-        for year in range(req.start_year, req.end_year + 1)
-    ]
+    try:
+        # Get directives for the year (or empty list)
+        year = req.start_year
+        directives = req.directives_by_year.get(year, [])
+        
+        # Run financial model
+        finance = FinanceEngine()
+        financial_result = finance.fast_forward_year(company_id=1, year=year, directives=directives)
+        
+        # Build context for LLM
+        event_context = f"""
+YEAR {year} FINANCIAL RESULTS:
+Revenue: ${financial_result['revenue']:,.0f}
+EBITDA: ${financial_result['ebitda']:,.0f} ({financial_result['ebitda_margin']:.1f}% margin)
+Net Income: ${financial_result['net_income']:,.0f}
+Cash Position: ${financial_result['cash']:,.0f}
+Total Debt: ${financial_result['total_debt']:,.0f}
+DSCR: {financial_result['dscr']:.2f}x
+Covenant Breach: {financial_result['covenant_breach']}
 
-    return {"years_processed": results}
+Directives Applied: {', '.join(directives) if directives else 'None'}
+"""
+        
+        # Generate narrative via LLM
+        try:
+            narrative_engine = NarrativeEngine()
+            narrative = narrative_engine.generate_texture(
+                event_context=event_context,
+                entities=["Asford Materials", "Connor Asford", "Mike Castellano"],
+                year=year,
+                quarter=1
+            )
+        except Exception as e:
+            # Fallback if LLM fails
+            narrative = f"Year {year} concluded. Financial model executed. {str(e)}"
+        
+        return {
+            "year": year,
+            "narrative": narrative,
+            "financial_summary": financial_result,
+            "timestamp": datetime.now().isoformat(),
+        }
+    
+    except Exception as e:
+        return {
+            "error": str(e),
+            "year": req.start_year,
+            "narrative": f"Error processing year: {str(e)}",
+        }
 
 
 @app.post("/search")
@@ -106,3 +157,4 @@ async def web_search(req: SearchRequest):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
