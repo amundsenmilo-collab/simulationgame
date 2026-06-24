@@ -1,2 +1,4 @@
 requests
 duckduckgo-search
+fastapi
+uvicorn
