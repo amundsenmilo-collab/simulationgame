@@ -32,10 +32,21 @@ class GameDatabase:
                 game_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 player_name VARCHAR(255) NOT NULL,
                 current_year INT DEFAULT 0,
+                personal_cash FLOAT DEFAULT 800000,
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             );
         """)
+
+        # Migrate: add personal_cash column if it doesn't exist (for existing tables)
+        conn.commit()  # commit games table creation first
+        try:
+            cur.execute(
+                "ALTER TABLE games ADD COLUMN personal_cash FLOAT DEFAULT 800000;"
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()  # column already exists, ignore
 
         # Financials table
         cur.execute("""
@@ -161,8 +172,8 @@ class GameDatabase:
         conn = self._get_conn()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO games (player_name, current_year) VALUES (%s, %s) RETURNING game_id;",
-            (player_name, 0),
+            "INSERT INTO games (player_name, current_year, personal_cash) VALUES (%s, %s, %s) RETURNING game_id;",
+            (player_name, 0, 800000.0),
         )
         game_id = cur.fetchone()[0]
         conn.commit()
@@ -187,6 +198,28 @@ class GameDatabase:
         cur.execute(
             "UPDATE games SET current_year = %s, updated_at = NOW() WHERE game_id = %s;",
             (year, game_id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    def get_personal_cash(self, game_id: str) -> float:
+        """Get the player's personal cash balance."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT personal_cash FROM games WHERE game_id = %s;", (game_id,))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return float(result[0]) if result and result[0] is not None else 800000.0
+
+    def update_personal_cash(self, game_id: str, personal_cash: float):
+        """Update the player's personal cash balance."""
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE games SET personal_cash = %s, updated_at = NOW() WHERE game_id = %s;",
+            (personal_cash, game_id),
         )
         conn.commit()
         cur.close()

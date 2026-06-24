@@ -118,6 +118,7 @@ async def create_game(req: CreateGameRequest):
         "game_id": game_id,
         "player_name": req.player_name,
         "current_year": 0,
+        "personal_cash": 800000.0,
         "financial_summary": baseline,
         "timestamp": datetime.now().isoformat(),
     }
@@ -351,32 +352,32 @@ async def stock_action(req: StockActionRequest):
             drip_enabled=position_dict["drip_enabled"],
         )
     
-    cash = financials.get("cash", 0)
+    # Use personal cash for stock transactions (separate from corporate cash)
+    personal_cash = db.get_personal_cash(game_id)
     message = ""
-    
+
     if action == "buy":
-        position, cash, message = stock_engine.buy_stock(position, stock_price, shares, cash)
+        position, personal_cash, message = stock_engine.buy_stock(position, stock_price, shares, personal_cash)
     elif action == "sell":
         position, proceeds, message = stock_engine.sell_stock(position, stock_price, shares)
-        cash += proceeds
+        personal_cash += proceeds
     elif action == "toggle_drip":
         if position:
             position.drip_enabled = not position.drip_enabled
             message = f"DRIP {'enabled' if position.drip_enabled else 'disabled'} for {ticker}"
         else:
             message = f"No position in {ticker}"
-    
+
     # Save position
     if position and position.shares > 0:
         db.save_stock_position(
             game_id, year, position.ticker, position.shares, position.avg_cost,
             position.current_price, position.dividend_per_share, position.drip_enabled
         )
-    
-    # Update cash
-    financials["cash"] = cash
-    db.save_financials(game_id, year, financials)
-    
+
+    # Update personal cash (not corporate cash)
+    db.update_personal_cash(game_id, personal_cash)
+
     return {
         "game_id": game_id,
         "year": year,
@@ -390,7 +391,7 @@ async def stock_action(req: StockActionRequest):
             "market_value": stock_engine.get_position_value(position),
             "gain_loss": stock_engine.get_position_gain(position),
         } if position else None,
-        "cash": cash,
+        "personal_cash": personal_cash,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -425,7 +426,8 @@ async def get_year_state(game_id: str, year: int):
     directives = db.get_directives(game_id, year)
     events = db.get_events(game_id, year)
     stock_positions = db.get_all_stock_positions(game_id, year)
-    
+    personal_cash = db.get_personal_cash(game_id)
+
     return {
         "game_id": game_id,
         "year": year,
@@ -434,6 +436,7 @@ async def get_year_state(game_id: str, year: int):
         "directives": directives,
         "events": events,
         "stock_positions": stock_positions,
+        "personal_cash": personal_cash,
         "timestamp": datetime.now().isoformat(),
     }
 

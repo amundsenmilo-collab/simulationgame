@@ -89,7 +89,8 @@
                 <div class="flex justify-between"><span>EBITDA:</span><span class="font-mono">$4.48M</span></div>
                 <div class="flex justify-between"><span>EBITDA Margin:</span><span class="font-mono text-green-400">16.0%</span></div>
                 <div class="flex justify-between"><span>Net Income:</span><span class="font-mono">$2.39M</span></div>
-                <div class="flex justify-between"><span>Cash:</span><span class="font-mono">$3.18M</span></div>
+                <div class="flex justify-between"><span>Corp. Cash:</span><span class="font-mono">$3.18M</span></div>
+                <div class="flex justify-between"><span>Personal Cash:</span><span class="font-mono text-blue-400">$800K</span></div>
                 <div class="flex justify-between"><span>Debt:</span><span class="font-mono text-yellow-400">$4.62M</span></div>
                 <div class="flex justify-between border-t border-gray-700 pt-2"><span class="font-bold">DSCR:</span><span class="font-mono font-bold text-green-400">1.93x</span></div>
               </div>
@@ -98,12 +99,12 @@
             <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
               <h2 class="text-xl font-bold mb-4">Immediate Crises</h2>
               <ul class="text-gray-300 space-y-2 text-sm">
-                <li>✗ Union election in 45 days</li>
-                <li>✗ Plant at 87% utilization — losing bids</li>
-                <li>✗ Deferred maintenance: $866K backlog</li>
-                <li>✗ Regions Bank meeting required by Jan 15</li>
-                <li>✗ Estimator has outside offer</li>
-                <li>✗ Mother wants more money; sister wants "fairness"</li>
+                <li>&#x2717; Union election in 45 days</li>
+                <li>&#x2717; Plant at 87% utilization — losing bids</li>
+                <li>&#x2717; Deferred maintenance: $866K backlog</li>
+                <li>&#x2717; Regions Bank meeting required by Jan 15</li>
+                <li>&#x2717; Estimator has outside offer</li>
+                <li>&#x2717; Mother wants more money; sister wants "fairness"</li>
               </ul>
             </div>
           </div>
@@ -136,8 +137,9 @@
               <h1 class="text-3xl font-bold">Asford Materials</h1>
               <p class="text-gray-400 text-sm mt-1" id="yearDisplay">Year 0 (2026)</p>
             </div>
-            <div class="text-right">
-              <p class="text-gray-400 text-sm">Cash: <span class="font-mono text-green-400" id="cashDisplay">$3.2M</span></p>
+            <div class="text-right space-y-1">
+              <p class="text-gray-400 text-sm">Corp. Cash: <span class="font-mono text-green-400" id="cashDisplay">$3.2M</span></p>
+              <p class="text-gray-400 text-sm">Personal Cash: <span class="font-mono text-blue-400" id="personalCashDisplay">$800K</span></p>
               <p class="text-gray-400 text-sm">DSCR: <span class="font-mono text-green-400" id="dscrDisplay">1.93x</span></p>
             </div>
           </div>
@@ -146,11 +148,12 @@
 
       <div class="flex-1 max-w-6xl mx-auto w-full px-4 py-8">
         <!-- Tabs -->
-        <div class="flex gap-2 mb-6 border-b border-gray-800 pb-4">
-          <button class="tab-button active" onclick="switchTab('strategy')">Strategy</button>
-          <button class="tab-button" onclick="switchTab('chat')">Advisor Chat</button>
-          <button class="tab-button" onclick="switchTab('stocks')">Stock Portfolio</button>
-          <button class="tab-button" onclick="switchTab('metrics')">Metrics</button>
+        <div class="flex gap-2 mb-6 border-b border-gray-800 pb-4 flex-wrap">
+          <button class="tab-button active" onclick="switchTab('strategy', event)">Strategy</button>
+          <button class="tab-button" onclick="switchTab('chat', event)">Advisor Chat</button>
+          <button class="tab-button" onclick="switchTab('personalFinances', event)">Personal Finances</button>
+          <button class="tab-button" onclick="switchTab('stocks', event)">Corp. Stock Portfolio</button>
+          <button class="tab-button" onclick="switchTab('metrics', event)">Metrics</button>
         </div>
 
         <!-- STRATEGY TAB -->
@@ -221,21 +224,83 @@
           </div>
         </div>
 
-        <!-- STOCKS TAB -->
+        <!-- PERSONAL FINANCES TAB -->
+        <div id="personalFinancesTab" class="tab-content hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-6">
+              <!-- Personal Cash Balance -->
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-blue-900 rounded-lg p-6">
+                <div class="flex items-center justify-between mb-2">
+                  <h2 class="text-xl font-bold">Personal Finances</h2>
+                  <span class="text-xs text-blue-400 bg-blue-900/30 border border-blue-800 rounded px-2 py-1">Separate from Corporate</span>
+                </div>
+                <p class="text-gray-400 text-sm mb-4">Your personal wealth — independent of Asford Materials corporate cash. Use this to invest in stocks.</p>
+                <div class="metric-card">
+                  <div class="metric-label">Personal Cash Available</div>
+                  <div class="metric-value text-blue-400" id="personalCashBalance">$800K</div>
+                </div>
+              </div>
+
+              <!-- Personal Stock Positions -->
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+                <h2 class="text-xl font-bold mb-4">My Stock Positions</h2>
+                <div id="personalPortfolioList" class="space-y-4">
+                  <p class="text-gray-400 text-sm">No positions yet. Use the trading panel to buy stocks with your personal cash.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Personal Trading Panel -->
+            <div class="space-y-4">
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+                <h2 class="text-lg font-bold mb-1">Personal Stock Trade</h2>
+                <p class="text-xs text-gray-500 mb-4">Funds drawn from personal cash</p>
+                <div class="space-y-3">
+                  <div>
+                    <label class="text-sm text-gray-400">Ticker</label>
+                    <input id="personalStockTicker" type="text" value="ASFD" class="input-field w-full" placeholder="e.g., ASFD, MSFT">
+                  </div>
+                  <div>
+                    <label class="text-sm text-gray-400">Shares</label>
+                    <input id="personalStockShares" type="number" class="input-field w-full" placeholder="100">
+                  </div>
+                  <button class="btn-primary w-full btn-sm" onclick="personalBuyStock()">Buy with Personal Cash</button>
+                  <button class="btn-secondary w-full btn-sm" onclick="personalSellStock()">Sell</button>
+                </div>
+              </div>
+
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
+                <h2 class="text-lg font-bold mb-4">Last Trade Info</h2>
+                <div id="personalStockInfo" class="space-y-2 text-sm">
+                  <p class="text-gray-400">Enter a ticker and trade to see price details</p>
+                </div>
+              </div>
+
+              <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-blue-900/40 rounded-lg p-4">
+                <p class="text-xs text-blue-300 leading-relaxed">
+                  <strong class="text-blue-200">Personal vs. Corporate:</strong> Stock purchases here use your personal $800K starting cash. Corporate cash ($3.175M) is used only for business operations — CapEx, payroll, debt service.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- STOCKS TAB (Corporate) -->
         <div id="stocksTab" class="tab-content hidden">
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2">
               <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6 mb-6">
-                <h2 class="text-xl font-bold mb-4">Stock Portfolio</h2>
+                <h2 class="text-xl font-bold mb-4">Corporate Stock Portfolio</h2>
+                <p class="text-gray-400 text-sm mb-4">Corporate equity holdings — tracked separately from personal investments.</p>
                 <div id="portfolioList" class="space-y-4">
-                  <p class="text-gray-400 text-sm">No positions yet. Buy stocks to start investing.</p>
+                  <p class="text-gray-400 text-sm">No corporate positions yet.</p>
                 </div>
               </div>
             </div>
 
             <div class="space-y-4">
               <div class="bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 rounded-lg p-6">
-                <h2 class="text-lg font-bold mb-4">Trade</h2>
+                <h2 class="text-lg font-bold mb-4">Corporate Trade</h2>
                 <div class="space-y-3">
                   <div>
                     <label class="text-sm text-gray-400">Ticker</label>
@@ -280,8 +345,12 @@
               <div class="metric-value status-good" id="metNet">$2.4M</div>
             </div>
             <div class="metric-card">
-              <div class="metric-label">Cash</div>
+              <div class="metric-label">Corp. Cash</div>
               <div class="metric-value status-good" id="metCash">$3.2M</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Personal Cash</div>
+              <div class="metric-value text-blue-400" id="metPersonalCash">$800K</div>
             </div>
             <div class="metric-card">
               <div class="metric-label">Total Debt</div>
@@ -309,6 +378,9 @@
     const API_URL = "https://web-production-c89c7.up.railway.app";
     let gameId = null;
     let currentYear = 0;
+    let personalCash = 800000;
+    // Track personal stock positions locally for display (keyed by ticker)
+    let personalPositions = {};
 
     function formatCurrency(num) {
       if (num >= 1000000) return '$' + (num / 1000000).toFixed(1) + 'M';
@@ -316,16 +388,60 @@
       return '$' + num.toFixed(0);
     }
 
+    function updatePersonalCashDisplay(amount) {
+      personalCash = amount;
+      const formatted = formatCurrency(amount);
+      document.getElementById('personalCashDisplay').textContent = formatted;
+      document.getElementById('personalCashBalance').textContent = formatted;
+      document.getElementById('metPersonalCash').textContent = formatted;
+    }
+
+    function renderPersonalPortfolio(positions) {
+      const list = document.getElementById('personalPortfolioList');
+      if (!positions || Object.keys(positions).length === 0) {
+        list.innerHTML = '<p class="text-gray-400 text-sm">No positions yet. Use the trading panel to buy stocks with your personal cash.</p>';
+        return;
+      }
+      list.innerHTML = '';
+      for (const ticker in positions) {
+        const pos = positions[ticker];
+        const gainLoss = (pos.current_price - pos.avg_cost) * pos.shares;
+        const gainClass = gainLoss >= 0 ? 'text-green-400' : 'text-red-400';
+        const gainSign = gainLoss >= 0 ? '+' : '';
+        const marketValue = pos.shares * pos.current_price;
+        const card = document.createElement('div');
+        card.className = 'bg-gray-900 border border-gray-700 rounded-lg p-4';
+        const divRow = pos.dividend_per_share > 0
+          ? '<div class="mt-2 text-xs text-yellow-400">Dividend: $' + pos.dividend_per_share.toFixed(2) + '/share/yr</div>'
+          : '';
+        card.innerHTML =
+          '<div class="flex justify-between items-start mb-2">' +
+            '<div>' +
+              '<span class="font-bold text-white text-lg">' + ticker + '</span>' +
+              '<span class="text-gray-400 text-sm ml-2">' + pos.shares.toFixed(2) + ' shares</span>' +
+            '</div>' +
+            '<span class="' + gainClass + ' font-mono font-bold">' + gainSign + formatCurrency(gainLoss) + '</span>' +
+          '</div>' +
+          '<div class="grid grid-cols-3 gap-2 text-xs text-gray-400">' +
+            '<div><span class="block text-gray-500">Avg Cost</span>$' + pos.avg_cost.toFixed(2) + '</div>' +
+            '<div><span class="block text-gray-500">Current</span>$' + pos.current_price.toFixed(2) + '</div>' +
+            '<div><span class="block text-gray-500">Mkt Value</span>' + formatCurrency(marketValue) + '</div>' +
+          '</div>' +
+          divRow;
+        list.appendChild(card);
+      }
+    }
+
     function showPage(pageId) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
       document.getElementById(pageId).classList.add('active');
     }
 
-    function switchTab(tabName) {
-      document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    function switchTab(tabName, evt) {
+      document.querySelectorAll('.tab-content').forEach(function(t) { t.classList.add('hidden'); });
       document.getElementById(tabName + 'Tab').classList.remove('hidden');
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      document.querySelectorAll('.tab-button').forEach(function(b) { b.classList.remove('active'); });
+      if (evt && evt.target) evt.target.classList.add('active');
     }
 
     async function startGame() {
@@ -338,6 +454,10 @@
         const data = await res.json();
         gameId = data.game_id;
         currentYear = 0;
+        personalCash = data.personal_cash || 800000;
+        personalPositions = {};
+        updatePersonalCashDisplay(personalCash);
+        renderPersonalPortfolio(personalPositions);
         showPage('gamePage');
       } catch (e) {
         alert('Failed to create game: ' + e.message);
@@ -428,6 +548,95 @@
       }
     }
 
+    // ===== PERSONAL STOCK TRADING =====
+
+    async function personalBuyStock() {
+      if (!gameId) return;
+      const ticker = document.getElementById('personalStockTicker').value.trim().toUpperCase();
+      const shares = parseFloat(document.getElementById('personalStockShares').value);
+      if (!ticker || !shares || shares <= 0) { alert('Enter a valid ticker and share count.'); return; }
+
+      try {
+        const res = await fetch(API_URL + '/stock/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'buy', ticker: ticker, shares: shares })
+        });
+        const data = await res.json();
+
+        if (data.personal_cash !== undefined) {
+          updatePersonalCashDisplay(data.personal_cash);
+        }
+
+        // Update local position tracking
+        if (data.position && data.position.shares > 0) {
+          personalPositions[ticker] = {
+            shares: data.position.shares,
+            avg_cost: data.position.avg_cost,
+            current_price: data.position.current_price,
+            dividend_per_share: data.position.dividend_per_share || 0
+          };
+        }
+        renderPersonalPortfolio(personalPositions);
+
+        // Show trade info
+        const infoEl = document.getElementById('personalStockInfo');
+        if (data.position) {
+          infoEl.innerHTML =
+            '<div class="space-y-1">' +
+              '<div class="flex justify-between"><span class="text-gray-400">Price</span><span class="font-mono">$' + data.position.current_price.toFixed(2) + '</span></div>' +
+              '<div class="flex justify-between"><span class="text-gray-400">Shares</span><span class="font-mono">' + data.position.shares.toFixed(2) + '</span></div>' +
+              '<div class="flex justify-between"><span class="text-gray-400">Mkt Value</span><span class="font-mono">' + formatCurrency(data.position.market_value) + '</span></div>' +
+            '</div>';
+        }
+
+        alert(data.message);
+        document.getElementById('personalStockShares').value = '';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    async function personalSellStock() {
+      if (!gameId) return;
+      const ticker = document.getElementById('personalStockTicker').value.trim().toUpperCase();
+      const shares = parseFloat(document.getElementById('personalStockShares').value);
+      if (!ticker || !shares || shares <= 0) { alert('Enter a valid ticker and share count.'); return; }
+
+      try {
+        const res = await fetch(API_URL + '/stock/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_id: gameId, year: currentYear, action: 'sell', ticker: ticker, shares: shares })
+        });
+        const data = await res.json();
+
+        if (data.personal_cash !== undefined) {
+          updatePersonalCashDisplay(data.personal_cash);
+        }
+
+        // Update local position tracking
+        if (!data.position || data.position.shares === 0) {
+          delete personalPositions[ticker];
+        } else {
+          personalPositions[ticker] = {
+            shares: data.position.shares,
+            avg_cost: data.position.avg_cost,
+            current_price: data.position.current_price,
+            dividend_per_share: data.position.dividend_per_share || 0
+          };
+        }
+        renderPersonalPortfolio(personalPositions);
+
+        alert(data.message);
+        document.getElementById('personalStockShares').value = '';
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+
+    // ===== CORPORATE STOCK TRADING =====
+
     async function buyStock() {
       if (!gameId) return;
       const ticker = document.getElementById('stockTicker').value;
@@ -471,10 +680,11 @@
     function resetGame() {
       gameId = null;
       currentYear = 0;
+      personalCash = 800000;
+      personalPositions = {};
       document.getElementById('directiveInput').value = '';
       showPage('openingPage');
     }
   </script>
 </body>
 </html>
-
